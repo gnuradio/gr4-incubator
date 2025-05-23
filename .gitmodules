@@ -1,0 +1,3 @@
+[submodule "gnuradio4"]
+	path = gnuradio4
+	url = https://github.com/gnuradio/gnuradio4
