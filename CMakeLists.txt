@@ -75,10 +75,23 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "(Clang|GNU)")
     endif ()
 endif ()
 
-# Mainly for FMT
-set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
+include(FetchContent)
+
+FetchContent_Declare(
+  ut
+  GIT_REPOSITORY https://github.com/boost-ext/ut.git
+  GIT_TAG 53e17f25119598c6458d30351b260193096ba67e # latest tag as of 2023-04-02
+)
+
+FetchContent_MakeAvailable(ut)
+
+option(ENABLE_TESTING "Enable Test Builds" ON)
+
+if(ENABLE_TESTING AND (UNIX OR APPLE))
+  include(CTest)
+  list(APPEND CMAKE_CTEST_ARGUMENTS "--output-on-failure")
+  enable_testing()
+  message("Building Tests and benchmarks.")
+endif()
 
 add_subdirectory(blocks)
-
-# GR4 brought in as a header only library - 
-add_subdirectory(gnuradio4)

@@ -1,0 +1,21 @@
+{
+  "name": "GR4 OOT Dev Container",
+  "build": {
+    "dockerfile": "../docker/Dockerfile"
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      },
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-python.python",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  }
+  // "postCreateCommand": "echo 'Container ready!'",
+  // "forwardPorts": [],
+  // "remoteUser": "vscode"
+}
