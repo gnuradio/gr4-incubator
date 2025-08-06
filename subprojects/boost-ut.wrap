@@ -1,0 +1,4 @@
+[wrap-git]
+directory = boost-ut
+url = https://github.com/boost-ext/ut.git
+revision = v2.3.1
