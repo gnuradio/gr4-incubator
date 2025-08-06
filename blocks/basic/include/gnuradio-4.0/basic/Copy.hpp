@@ -1,6 +1,4 @@
-
-#ifndef _GR_BASIC_COPY_HPP
-#define _GR_BASIC_COPY_HPP
+#pragma once
 
 #include <gnuradio-4.0/Block.hpp>
 #include <gnuradio-4.0/BlockRegistry.hpp>
@@ -9,7 +7,8 @@
 
 namespace gr::basic {
 
-GR_REGISTER_BLOCK(gr::basic::Copy, [ uint8_t, int16_t, int32_t ])
+GR_REGISTER_BLOCK("Copy Block", gr::basic::Copy, ([T]), [ uint8_t, int16_t, int32_t ])
+
 template<typename T>
 struct Copy : Block<Copy<T>> {
 
@@ -25,4 +24,3 @@ struct Copy : Block<Copy<T>> {
 
 } // namespace gr::basic
 
-#endif // _GR_BASIC_COPY_HPP
