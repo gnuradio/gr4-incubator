@@ -1,5 +1,4 @@
-#ifndef _GR4_ZEROMQ_ZMQ_PUSH_SINK
-#define _GR4_ZEROMQ_ZMQ_PUSH_SINK
+#pragma once
 
 #include "trait_helpers.hpp"
 
@@ -13,8 +12,6 @@
 #include <zmq.hpp>
 
 namespace gr::zeromq {
-
-GR_REGISTER_BLOCK(gr::zeromq::ZmqPushSink, [uint8_t]);
 
 template<typename T>
 concept ZmqPushSinkAcceptableTypes = std::is_same_v<T, std::vector<typename T::value_type, typename T::allocator_type>> || std::is_same_v<T, std::complex<typename T::value_type>> || std::is_integral<T>::value || std::is_floating_point<T>::value || std::is_same<T, pmtv::pmt>::value;
@@ -83,4 +80,4 @@ public:
 
 } // namespace gr::zeromq
 
-#endif // _GR4_ZEROMQ_ZMQ_PUSH_SINK
+GR_REGISTER_BLOCK("ZmqPushSink", gr::zeromq::ZmqPushSink, ([T]), [ uint8_t, int16_t, int32_t, float, std::complex<float>, std::vector<float>, std::vector<std::complex<float>>, pmtv::pmt ])

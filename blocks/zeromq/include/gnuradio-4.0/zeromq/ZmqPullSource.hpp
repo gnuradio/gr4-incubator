@@ -1,5 +1,4 @@
-#ifndef _GR4_ZEROMQ_ZMQ_PULL_SOURCE
-#define _GR4_ZEROMQ_ZMQ_PULL_SOURCE
+#pragma once
 
 #include <cerrno>
 #include <gnuradio-4.0/Block.hpp>
@@ -130,4 +129,4 @@ public:
 
 } // namespace gr::zeromq
 
-#endif // _GR4_ZEROMQ_ZMQ_PULL_SOURCE
+GR_REGISTER_BLOCK("ZmqPullSource", gr::zeromq::ZmqPullSource, ([T]), [ uint8_t, int16_t, int32_t, float, std::complex<float>, std::vector<float>, std::vector<std::complex<float>> ])
