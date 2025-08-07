@@ -3,8 +3,10 @@
 #include <cerrno>
 #include <gnuradio-4.0/Block.hpp>
 #include <gnuradio-4.0/meta/reflection.hpp>
+#include "trait_helpers.hpp"
 #include <zmq.hpp>
 #include <pmt_converter/pmt_legacy_codec.h>
+
 
 namespace gr::zeromq {
 

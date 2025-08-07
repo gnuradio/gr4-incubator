@@ -1,19 +1,24 @@
 inc_dirs = include_directories('include')
 
+install_subdir(
+  'include/gnuradio-4.0/zeromq',
+  install_dir: join_paths(get_option('includedir'), 'gnuradio-4.0')
+)
+
 libname = 'gr4-basic-blocks'
 
+deps = [gr4_dep, pmt_conv_dep]
 # Interface library
-gr4_basic_blocks = library(
-  libname,
-  sources: [],
-  include_directories: inc_dirs,
-  dependencies: [gr4_dep],
-  install: true  # Set true if you plan to install it
-)
+# gr4_basic_blocks = library(
+#   libname,
+#   sources: [],
+#   include_directories: inc_dirs,
+#   dependencies: deps,
+#   install: true  # Set true if you plan to install it
+# )
 
 # Expose the dependency for subprojects or installation
 gr4_basic_blocks_dep = declare_dependency(
-  link_with: gr4_basic_blocks,
   include_directories: inc_dirs
 )
 
@@ -26,4 +31,21 @@ gr4_basic_blocks_dep = declare_dependency(
 subdir('plugin')
 subdir('test')
 
+
+pkgconfig = import('pkgconfig')
+pkgconfig.generate(
+  name : 'gnuradio4-basic-headers',
+  description : 'GNU Radio 4.0 Basic Headers',
+  version : meson.project_version(),
+  subdirs: 'gnuradio-4.0/basic',
+)
+
+#TODO - build into plugin generator
+pkgconfig.generate(
+  Gr4BasicBlocks_shared,
+  name : 'gnuradio4-basic',
+  description : 'GNU Radio 4.0 Basic Shared Blocks',
+  version : meson.project_version(),
+  subdirs: 'gnuradio-4.0/basic',
+)
 

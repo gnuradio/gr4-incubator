@@ -2,20 +2,45 @@ zmq_dep = dependency('cppzmq', required: true)
 
 inc_dirs = include_directories('include')
 
-# Interface library
-gr4_zmq_blocks = library(
-  'gr4-zmq-blocks',
-  sources: [],
-  include_directories: inc_dirs,
-  dependencies: [gr4_dep, pmt_conv_dep],
-  install: true  # Set true if you plan to install it
+install_subdir(
+  'include/gnuradio-4.0/zeromq',
+  install_dir: join_paths(get_option('includedir'), 'gnuradio-4.0')
 )
 
-# Expose the dependency for subprojects or installation
-gr4_zmq_blocks_dep = declare_dependency(
-  link_with: gr4_zmq_blocks,
-  include_directories: inc_dirs
-)
+deps = [gr4_dep, pmt_conv_dep, zmq_dep]
+# # Interface library
+# gr4_zmq_blocks = library(
+#   'gr4-zmq-blocks',
+#   sources: [],
+#   include_directories: inc_dirs,
+#   dependencies: deps,
+#   install: true  # Set true if you plan to install it
+# )
 
+# # Expose the dependency for subprojects or installation
+# gr4_zmq_blocks_dep = declare_dependency(
+#   link_with: gr4_zmq_blocks,
+#   include_directories: inc_dirs
+# )
+
+subdir('plugin')
 subdir('examples')
 subdir('test')
+
+pkgconfig = import('pkgconfig')
+pkgconfig.generate(
+  name : 'gnuradio4-zeromq-headers',
+  description : 'GNU Radio 4.0 ZeroMQ Headers',
+  version : meson.project_version(),
+  subdirs: 'gnuradio-4.0/zeromq',
+)
+
+#TODO - build into plugin generator
+pkgconfig.generate(
+  Gr4ZeromqBlocks_shared,
+  name : 'gnuradio4-zeromq',
+  description : 'GNU Radio 4.0 ZeroMQ Shared Blocks',
+  version : meson.project_version(),
+  subdirs: 'gnuradio-4.0/zeromq',
+)
+

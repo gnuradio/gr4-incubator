@@ -85,8 +85,8 @@ def main():
         fout.write(    f"  'generated/integrator.cpp'")
         fout.write(")\n\n")
         fout.write("plugin_libname = '{}'\n".format(args.lib_name))
-        fout.write("my_lib_shared = shared_library(plugin_libname + 'Shared', generated_cpp, include_directories: incdir, dependencies: [gr4_dep], link_args: ['/usr/local/lib/libgnuradio-blocklib-core.so'], install: true)\n")
-        fout.write("my_lib_static = static_library(plugin_libname + 'Static', generated_cpp, include_directories: incdir, dependencies: [gr4_dep], install: true)\n")
+        fout.write(f"{args.lib_name}_shared = shared_library(plugin_libname + 'Shared', generated_cpp, include_directories: incdir, dependencies: deps, link_args: ['/usr/local/lib/libgnuradio-blocklib-core.so'], install: true)\n")
+        fout.write(f"{args.lib_name}_static = static_library(plugin_libname + 'Static', generated_cpp, include_directories: incdir, dependencies: deps, install: true)\n")
         
 
 
