@@ -1,4 +1,0 @@
-[wrap-git]
-directory = gnuradio4
-url = https://github.com/gnuradio/gnuradio4.git
-revision = main
