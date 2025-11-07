@@ -1,8 +1,9 @@
 {
   "name": "GR4 OOT Dev Container",
-  "build": {
-    "dockerfile": "../docker/Dockerfile"
-  },
+  // "build": {
+  //   "dockerfile": "../docker/Dockerfile"
+  // },
+  "image": "ghcr.io/mormj/gr4-oot-env:arm64",
   "runArgs": [
     "--network=host"
   ],
@@ -14,7 +15,8 @@
       "extensions": [
         "ms-vscode.cpptools",
         "ms-python.python",
-        "ms-azuretools.vscode-docker"
+        "ms-azuretools.vscode-docker",
+        "mesonbuild.mesonbuild"
       ]
     }
   }
