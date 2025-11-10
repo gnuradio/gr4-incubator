@@ -18,6 +18,7 @@ gr4_blocklib_dep = declare_dependency(
 # ut_dep = dependency('boost-ut')
 boost_ut_proj = subproject('boost-ut')
 ut_dep = boost_ut_proj.get_variable('boostut_dep')
+cli11_dep = dependency('CLI11')
 
 # fmt_dep = dependency('fmt', fallback: ['fmt', 'fmt_dep'])
 # pmt_dep = dependency('pmt', fallback: ['pmt', 'pmt_dep'])
