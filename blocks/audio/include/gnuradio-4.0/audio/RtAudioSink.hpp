@@ -143,7 +143,7 @@ struct RtAudioSink : Block<RtAudioSink<T>> {
 
         // 3) If still not open (e.g., waiting for num_channels), just consume and drop this buffer
         if (!_stream_open) {
-            dataIn.consume(dataIn.size());
+            (void)dataIn.consume(dataIn.size());
             return work::Status::OK;
         }
 
@@ -152,7 +152,7 @@ struct RtAudioSink : Block<RtAudioSink<T>> {
         if (n) {
             const float* src = reinterpret_cast<const float*>(dataIn.data());
             size_t pushed = _fifo.push(src, n);
-            dataIn.consume(pushed);
+            (void)dataIn.consume(pushed);
         }
         return work::Status::OK;
     }
@@ -161,15 +161,14 @@ private:
     // --- Tag scanning
     template <typename SpanT>
     void scan_format_tags_(SpanT& dataIn) {
-        // (A) Iterable tag view:
-        for (const auto& t : dataIn.tags()) { try_extract_(t); }
+        for (const auto& t : dataIn.tags()) {
+            try_extract_(t);  
+        }
     }
 
-    // Extract num_channels/sample_rate from a tag’s property map (variant-like values)
     template <typename TagT>
     void try_extract_(const TagT& tag) {
-        // Expect something like: property_map (std::map<std::string, variant<...>>)
-        const auto* props = get_props_(tag);
+        const auto* props = get_props_(tag);   // always returns const property_map* or nullptr
         if (!props) return;
 
         if (auto v = get_uint_(*props, kTagNumChannels)) {
@@ -180,39 +179,76 @@ private:
         }
     }
 
-    // Get a pointer to the property_map from various tag shapes
+
+    // Extract a pointer to const property_map from tag.second, handling ref_wrapper or direct map.
     template <typename TagT>
-    static const auto* get_props_(const TagT& tag) {
-        if constexpr (is_std_pair_v<TagT>) {
-            // Your case: tags() returns pair<size_t, property_map>
+    static const property_map* get_props_(const TagT& tag) {
+        using Second = std::remove_cvref_t<decltype(tag.second)>;
+
+        // second is std::reference_wrapper<const property_map> (or non-const)
+        if constexpr (std::is_same_v<Second, std::reference_wrapper<const property_map>> ||
+                    std::is_same_v<Second, std::reference_wrapper<property_map>>) {
+            return &tag.second.get();
+        }
+        // second is a (const) property_map by ref/value
+        else if constexpr (std::is_same_v<Second, const property_map> ||
+                        std::is_same_v<Second, property_map>) {
             return &tag.second;
-        } else if constexpr (requires { tag.props; }) {
-            // Tag object with `.props`
-            return &tag.props;
-        } else if constexpr (is_map_like_v<TagT>) {
-            // Tag is itself a property_map
-            return &tag;
-        } else {
-            return static_cast<const void*>(nullptr); // unsupported shape
+        }
+        // second is a (const) property_map*
+        else if constexpr (std::is_pointer_v<Second> &&
+                        (std::is_same_v<std::remove_pointer_t<Second>, property_map> ||
+                            std::is_same_v<std::remove_pointer_t<Second>, const property_map>)) {
+            return tag.second;
+        }
+        // unknown payload type
+        else {
+            return nullptr;
         }
     }
-    template <typename Props>
-    static std::optional<uint32_t> get_uint_(const Props& pm, const std::string& key) {
+    
+    static std::optional<uint32_t>
+    get_uint_(const property_map& pm, const std::string& key)
+    {
         auto it = pm.find(key);
         if (it == pm.end()) return std::nullopt;
 
-        // Handle common variant alternatives without knowing exact type:
-        // int, unsigned, uint64_t, double-as-int, etc.
-        const auto& v = it->second;
-        // try std::get_if for common types
-        if (auto p = std::get_if<uint32_t>(&v))   return *p;
-        if (auto p = std::get_if<int>(&v))        return *p > 0 ? (uint32_t)*p : 0U;
-        if (auto p = std::get_if<unsigned>(&v))   return (uint32_t)*p;
-        if (auto p = std::get_if<uint64_t>(&v))   return (uint32_t)*p;
-        if (auto p = std::get_if<double>(&v))     return *p > 0 ? (uint32_t)*p : 0U;
-        if (auto p = std::get_if<float>(&v))      return *p > 0 ? (uint32_t)*p : 0U;
-        // Add more branches if your property_map uses a different variant set.
-        return std::nullopt;
+        const auto& v = it->second; // rva::variant<...>
+
+        std::optional<uint32_t> out;
+        std::visit([&](const auto& x) {
+            using X = std::decay_t<decltype(x)>;
+
+            if constexpr (std::is_same_v<X, std::monostate> || std::is_same_v<X, bool>) {
+                // ignore
+            } else if constexpr (std::is_integral_v<X>) {
+                if constexpr (std::is_signed_v<X>)
+                    out = x >= 0 ? static_cast<uint32_t>(x) : 0u;
+                else
+                    out = static_cast<uint32_t>(x);
+            } else if constexpr (std::is_floating_point_v<X>) {
+                out = x > 0 ? static_cast<uint32_t>(x) : 0u;
+            } else if constexpr (std::is_same_v<X, std::string>) {
+                try {
+                    // allow decimal strings; clamp to u32 range if desired
+                    unsigned long tmp = std::stoul(x);
+                    out = static_cast<uint32_t>(tmp);
+                } catch (...) {
+                    // leave out = std::nullopt
+                }
+            } else {
+                // other variant members (vectors, tensors, maps, etc.) -> ignore
+            }
+        }, v);
+
+        return out;
+    }
+
+    // forwarding overload if some code still passes a reference_wrapper:
+    static std::optional<uint32_t>
+    get_uint_(const std::reference_wrapper<const property_map>& pm, const std::string& key)
+    {
+        return get_uint_(pm.get(), key);
     }
 
     bool ready_to_open_() const {
