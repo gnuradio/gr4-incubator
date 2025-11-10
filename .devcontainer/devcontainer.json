@@ -3,10 +3,26 @@
   // "build": {
   //   "dockerfile": "../docker/Dockerfile"
   // },
-  "image": "ghcr.io/mormj/gr4-oot-env:arm64",
+  "image": "ghcr.io/mormj/gr4-oot-env:latest",
+  
+  // Give the container access to network + audio
   "runArgs": [
-    "--network=host"
+    "--network=host",
+    "--device=/dev/snd",
+    "--group-add=audio"
   ],
+
+  // Mount Pulse/PipeWire socket + cookie so Pulse audio works from the container
+  "mounts": [
+    "source=${localEnv:XDG_RUNTIME_DIR}/pulse,target=/run/user/${localEnv:UID}/pulse,type=bind",
+    "source=${localEnv:HOME}/.config/pulse/cookie,target=/home/vscode/.config/pulse/cookie,type=bind,consistency=cached,readonly"
+  ],
+
+  // Point Pulse clients at the host's Pulse/PipeWire
+  "containerEnv": {
+    "PULSE_SERVER": "unix:/run/user/${localEnv:UID}/pulse/native"
+  },
+
   "customizations": {
     "vscode": {
       "settings": {
