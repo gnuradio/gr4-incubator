@@ -8,6 +8,10 @@ RUN apt-get update -q  && apt-get install --no-install-recommends -qy wget gpg c
     clang-18 clang-tools-18 clang-20 clang-tools-20 libc++-20-dev libc++abi-20-dev gdb lldb-20 gcc-14 g++-14 gcc-15 g++-15 \
     ccache mold \
     python3-dev pybind11-dev libgtest-dev python3-numpy pkg-config \
+    libasound2-dev \
+    libpulse-dev \
+    libjack-jackd2-dev jackd2 \
+    pulseaudio-utils alsa-utils libasound2-plugins \
     && rm -rf /var/lib/apt/lists/*
 
 
@@ -16,9 +20,14 @@ RUN locale-gen en_US.UTF-8 && echo 'LANG="en_US.UTF-8"'>/etc/default/locale \
     && echo user ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/user && chmod 0440 /etc/sudoers.d/user 
 
 RUN dpkg-reconfigure --frontend=noninteractive locales && update-locale LANG=en_US.UTF-8 \
-    && update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-14 110 \
-    && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 110 --slave /usr/bin/g++ g++ /usr/bin/g++-14 --slave /usr/bin/gcov gcov /usr/bin/gcov-14
+    && update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-15 110 \
+    && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-15 110 --slave /usr/bin/g++ g++ /usr/bin/g++-15 --slave /usr/bin/gcov gcov /usr/bin/gcov-15
 
+# RUN dpkg-reconfigure --frontend=noninteractive locales && update-locale LANG=en_US.UTF-8 \
+#     && update-alternatives --install /usr/bin/cc cc /usr/bin/clang-20 120 \
+#     && update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++-20 120 \
+#     && update-alternatives --set cc /usr/bin/clang-20 \
+#     && update-alternatives --set c++ /usr/bin/clang++-20
 
 # # Clone and build PMTV
 # RUN apt-get install --no-install-recommends -qy meson python3-dev pybind11-dev
@@ -33,10 +42,10 @@ RUN git clone https://github.com/gnuradio/gnuradio4.git
 WORKDIR /opt/gnuradio4
 RUN mkdir build && cd build && \
     #cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithAssert -DGR_ENABLE_BLOCK_REGISTRY=OFF -DENABLE_TESTING=OFF -DENABLE_EXAMPLES=OFF .. && \
-    cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithAssert -DGR_ENABLE_BLOCK_REGISTRY=ON -DENABLE_TESTING=OFF -DENABLE_EXAMPLES=OFF .. && \
-    ninja -j8 && ninja install && cp /opt/gnuradio4/build/core/libgnuradio-blocklib-core.so /usr/local/lib/ \
-    && find /opt/gnuradio4/blocks -type d -name 'gnuradio-4.0' -exec cp -r {} /usr/local/include/ \;
-
+    cmake -G Ninja -DWARNINGS_AS_ERRORS=OFF -DCMAKE_BUILD_TYPE=RelWithAssert -DGR_ENABLE_BLOCK_REGISTRY=OFF -DENABLE_TESTING=OFF -DENABLE_EXAMPLES=OFF .. && \
+    ninja -j1 && ninja install && cp /opt/gnuradio4/build/core/libgnuradio-blocklib-core.so /usr/local/lib/ \
+    && find /opt/gnuradio4/blocks -type d -name 'gnuradio-4.0' -exec cp -r {} /usr/local/include/ \; \
+    && find /opt/gnuradio4/meta -type d -name 'gnuradio-4.0' -exec cp -r {} /usr/local/include/ \; 
 
 # Copy your source tree (assume it lives next to Dockerfile)
 COPY . /opt/gr4-incubator

@@ -1,0 +1,19 @@
+FROM ubuntu:25.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update -q  && apt-get install --no-install-recommends -qy gnuradio-dev sudo \
+    && rm -rf /var/lib/apt/lists/*
+
+
+# RUN locale-gen en_US.UTF-8 && echo 'LANG="en_US.UTF-8"'>/etc/default/locale \
+#     && useradd -m -g users user \
+#     && echo user ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/user && chmod 0440 /etc/sudoers.d/user 
+
+
+RUN echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/ubuntu
+USER ubuntu
+WORKDIR /code
+ENTRYPOINT ["/bin/bash", "-l", "-c"]
+
+
