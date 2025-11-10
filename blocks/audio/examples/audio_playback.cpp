@@ -62,7 +62,12 @@ int main(int argc, char** argv) {
     }
 
 
-    gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::singleThreaded> sched{std::move(fg)};
+    gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::singleThreaded> sched;
+    if (auto ret = sched.exchange(std::move(fg)); !ret) {
+                throw std::runtime_error(std::format("failed to initialize scheduler: {}", ret.error()));
+    }
+
+
     const auto                                                            ret = sched.runAndWait();
     if (!ret.has_value()) {
         std::print("scheduler error: {}", ret.error());
