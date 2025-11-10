@@ -17,15 +17,18 @@ deps = [gr4_dep, pmt_conv_dep, zmq_dep]
 #   install: true  # Set true if you plan to install it
 # )
 
-# # Expose the dependency for subprojects or installation
-# gr4_zmq_blocks_dep = declare_dependency(
-#   link_with: gr4_zmq_blocks,
-#   include_directories: inc_dirs
-# )
+# Expose the dependency for subprojects or installation
+gr4_zmq_blocks_dep = declare_dependency(
+  include_directories: inc_dirs
+)
 
+if get_option('enable_plugins')
 subdir('plugin')
+endif
 subdir('examples')
+if get_option('enable_testing')
 subdir('test')
+endif
 
 pkgconfig = import('pkgconfig')
 pkgconfig.generate(
@@ -36,6 +39,7 @@ pkgconfig.generate(
 )
 
 #TODO - build into plugin generator
+if get_option('enable_plugins')
 pkgconfig.generate(
   Gr4ZeromqBlocks_shared,
   name : 'gnuradio4-zeromq',
@@ -43,4 +47,5 @@ pkgconfig.generate(
   version : meson.project_version(),
   subdirs: 'gnuradio-4.0/zeromq',
 )
+endif
 

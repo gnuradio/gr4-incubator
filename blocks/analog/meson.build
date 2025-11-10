@@ -28,9 +28,13 @@ gr4_analog_blocks_dep = declare_dependency(
 #   error('You must run bootstrap_plugins.sh before meson setup!')
 # endif
 
+if get_option('enable_plugins')
 subdir('plugin')
+endif
+# subdir('examples')
+if get_option('enable_testing')
 subdir('test')
-
+endif
 
 pkgconfig = import('pkgconfig')
 pkgconfig.generate(
@@ -41,6 +45,7 @@ pkgconfig.generate(
 )
 
 #TODO - build into plugin generator
+if get_option('enable_plugins')
 pkgconfig.generate(
   Gr4AnalogBlocks_shared,
   name : 'gnuradio4-analog',
@@ -48,4 +53,5 @@ pkgconfig.generate(
   version : meson.project_version(),
   subdirs: 'gnuradio-4.0/analog',
 )
+endif
 
