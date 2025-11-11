@@ -3,3 +3,7 @@
 **/__pycache__
 **/.vscode/
 .devcontainer/devcontainer.json
+*.fc32
+data/
+gr3_code/
+gnuradio4/

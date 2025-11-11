@@ -1,0 +1,40 @@
+{
+  "name": "GR4 OOT Dev Container",
+  // "build": {
+  //   "dockerfile": "../docker/Dockerfile"
+  // },
+  "image": "ghcr.io/mormj/gr4-oot-env:latest",
+  
+  // Give the container access to network + audio
+  "runArgs": [
+    "--network=host",
+    "--device=/dev/snd",
+    "--group-add=audio"
+  ],
+
+  // Mount Pulse/PipeWire socket + cookie so Pulse audio works from the container
+  "mounts": [
+    "source=${localEnv:XDG_RUNTIME_DIR}/pulse/native,target=/tmp/pulse-native,type=bind",
+    "source=${localEnv:HOME}/.config/pulse/cookie,target=/home/vscode/.config/pulse/cookie,type=bind,consistency=cached,readonly"
+  ],
+  "containerEnv": {
+    "PULSE_SERVER": "unix:/tmp/pulse-native"
+  },
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      },
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-python.python",
+        "ms-azuretools.vscode-docker",
+        "mesonbuild.mesonbuild"
+      ]
+    }
+  }
+  // "postCreateCommand": "echo 'Container ready!'",
+  // "forwardPorts": [],
+  // "remoteUser": "vscode"
+}

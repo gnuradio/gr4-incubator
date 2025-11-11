@@ -27,3 +27,6 @@ pmt_conv_dep = dependency('pmt_converter')
 # dependency('fmt', fallback: ['fmt', 'fmt_dep'])
 
 subdir('blocks')
+if get_option('enable_examples')
+subdir('examples')
+endif

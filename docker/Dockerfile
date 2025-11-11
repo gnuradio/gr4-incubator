@@ -45,8 +45,8 @@ RUN mkdir build && cd build && \
     cmake -G Ninja -DWARNINGS_AS_ERRORS=OFF -DCMAKE_BUILD_TYPE=RelWithAssert -DGR_ENABLE_BLOCK_REGISTRY=OFF -DENABLE_TESTING=OFF -DENABLE_EXAMPLES=OFF .. && \
     ninja -j1 && ninja install && cp /opt/gnuradio4/build/core/libgnuradio-blocklib-core.so /usr/local/lib/ \
     && find /opt/gnuradio4/blocks -type d -name 'gnuradio-4.0' -exec cp -r {} /usr/local/include/ \; \
-    && find /opt/gnuradio4/algorithm -type d -name 'gnuradio-4.0' -exec cp -r {} /usr/local/include/ \; \
-    && find /opt/gnuradio4/meta -type d -name 'gnuradio-4.0' -exec cp -r {} /usr/local/include/ \; 
+    && find /opt/gnuradio4/meta -type d -name 'gnuradio-4.0' -exec cp -r {} /usr/local/include/ \; \
+    && find /opt/gnuradio4/algorithm -type d -name 'gnuradio-4.0' -exec cp -r {} /usr/local/include/ \; 
 
 # Copy your source tree (assume it lives next to Dockerfile)
 COPY . /opt/gr4-incubator
@@ -57,7 +57,7 @@ ENV BUILD_ACTIVE_PROJECT=${BUILD_ACTIVE_PROJECT}
 
 # Conditionally build and install if set
 RUN if [ "$BUILD_ACTIVE_PROJECT" = "1" ]; then \
-      cd /opt/gr4-incubator && meson setup build --libdir=/usr/local/lib && cd build && ninja && ninja install && rm -rf /opt/gr4-incubator; \
+      cd /opt/gr4-incubator && meson setup build --libdir=/usr/local/lib && cd build && ninja -j4 && ninja install && rm -rf /opt/gr4-incubator; \
     else \
       echo "Skipping active project build/install"; \
     fi

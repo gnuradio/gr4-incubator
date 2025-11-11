@@ -224,7 +224,7 @@ struct AudioFileSource : Block<AudioFileSource<T>> {
                     {std::string(tag::TRIGGER_NAME.shortKey()), trigger_name.value},
                     {std::string(tag::TRIGGER_TIME.shortKey()), settings::convertTimePointToUint64Ns(std::chrono::system_clock::now())},
                     {"num_channels", _channels},
-                    {"sample_rate", _sampleRate},
+                    {"sample_rate", static_cast<float>(_sampleRate)},
                 },
                 0UZ
             );
@@ -266,4 +266,3 @@ private:
 
 
 } // namespace gr::audio
-
