@@ -7,17 +7,22 @@ using namespace boost::ut;
 
 const suite StreamToPmtTests = [] {
     "StreamToPmt"_test = [] {
-        size_t packet_size = 1234;
-        StreamToPmt<float> blk({
-        {"packet_size", packet_size},});
+        gr::Graph fg;
+        size_t             packet_size = 1234;
+        auto& blk = fg.emplaceBlock<StreamToPmt<float>>({
+            {"packet_size", packet_size},
+        });
+        // blk.settings().init();
+        // blk.settings().applyStagedParameters();
+        // StreamToPmt<float> blk;
+        // blk.packet_size = 1234;
         
-        std::vector<float> in(packet_size*4);
+        std::vector<float>     in(packet_size * 4);
         std::vector<pmtv::pmt> out(4);
-        blk.processBulk(in, out);
-        expect(eq(out.size(), 4)); 
-        expect(eq(out[0].size(), packet_size)); 
+        std::ignore = blk.processBulk(in, out);
+        expect(eq(out.size(), 4));
+        expect(eq(out[0].size(), packet_size));
     };
-
 };
 
 int main() { return boost::ut::cfg<boost::ut::override>.run(); }

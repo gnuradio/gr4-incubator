@@ -5,16 +5,14 @@
 
 namespace gr::basic {
 
-GR_REGISTER_BLOCK("gr::basic::StreamToPmt", gr::basic::StreamToPmt, ([T]), [ uint8_t, int16_t, int32_t, float, std::complex<float> ]);
-
 template<typename T>
-struct StreamToPmt : gr::Block<StreamToPmt<T>, Resampling<1024U, 1UZ, false>> {    
+struct StreamToPmt : gr::Block<StreamToPmt<T>, Resampling<>> {    
     using Description = Doc<"@brief Converts a stream of samples to uniform vector PMTs of a specified packet size">;
 
     PortIn<T> in;
     PortOut<pmtv::pmt> out;
 
-    size_t packet_size;
+    gr::Size_t packet_size = 1024;
 
     GR_MAKE_REFLECTABLE(StreamToPmt, in, out, packet_size);
 
@@ -28,7 +26,7 @@ struct StreamToPmt : gr::Block<StreamToPmt<T>, Resampling<1024U, 1UZ, false>> {
     }
 
     template<typename TSpanIn, typename TSpanOut>
-    gr::work::Status processBulk(const TSpanIn& in, TSpanOut& out) {
+    [[nodiscard]] constexpr gr::work::Status processBulk(const TSpanIn& in, TSpanOut& out) noexcept {
         const size_t N = this->input_chunk_size;
         size_t num_chunks = out.size();
 
@@ -45,6 +43,6 @@ struct StreamToPmt : gr::Block<StreamToPmt<T>, Resampling<1024U, 1UZ, false>> {
     }
 };
 
-
-
 }
+
+GR_REGISTER_BLOCK("gr::basic::StreamToPmt", gr::basic::StreamToPmt, ([T]), [ uint8_t, int16_t, int32_t, float, std::complex<float> ]);

@@ -1,4 +1,5 @@
 subdir('basic')
 subdir('zeromq')
+subdir('polyphase')
 subdir('analog')
 subdir('audio')
