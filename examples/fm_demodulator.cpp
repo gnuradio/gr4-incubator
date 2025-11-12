@@ -44,11 +44,11 @@ int main(int argc, char** argv) {
     
 
     gr::Graph fg;
-    // auto&     source = fg.emplaceBlock<gr::zeromq::ZmqPullSource<T>>({
-    //     {"endpoint", "tcp://localhost:5555"},
-    //     {"timeout", 10},
-    //     {"bind", false},
-    // });
+    auto&     zmq_source = fg.emplaceBlock<gr::zeromq::ZmqPullSource<TR>>({
+        {"endpoint", "tcp://localhost:5557"},
+        {"timeout", 10},
+        {"bind", true},
+    });
 
 
     double max_dev = 75e3;
@@ -153,12 +153,16 @@ int main(int argc, char** argv) {
     if (fg.connect<"out">(source).to<"in">(quad_demod) != gr::ConnectionResult::SUCCESS) {
         throw gr::exception(connection_error);
     }
-    if (fg.connect<"out">(quad_demod).to<"in">(resampler) != gr::ConnectionResult::SUCCESS) {
+    if (fg.connect<"out">(quad_demod).to<"in">(sink) != gr::ConnectionResult::SUCCESS) {
         throw gr::exception(connection_error);
     }
-    if (fg.connect<"out">(resampler).to<"in">(audio_sink) != gr::ConnectionResult::SUCCESS) {
+
+    if (fg.connect<"out">(zmq_source).to<"in">(audio_sink) != gr::ConnectionResult::SUCCESS) {
         throw gr::exception(connection_error);
     }
+    // if (fg.connect<"out">(resampler).to<"in">(sink) != gr::ConnectionResult::SUCCESS) {
+    //     throw gr::exception(connection_error);
+    // }
 
 
     gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::singleThreaded> sched;
