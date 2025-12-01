@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update -q  && apt-get install --no-install-recommends -qy wget gpg ca-certificates software-properties-common \
     bash file locales build-essential sudo cmake git make ninja-build cppzmq-dev libfftw3-dev meson ninja-build \
-    clang-18 clang-tools-18 clang-20 clang-tools-20 libc++-20-dev libc++abi-20-dev gdb lldb-20 gcc-14 g++-14 gcc-15 g++-15 \
+    clang-20 clang-tools-20 libc++-20-dev libc++abi-20-dev gdb lldb-20 gcc-15 g++-15 \
     ccache mold \
     python3-dev pybind11-dev libgtest-dev python3-numpy pkg-config \
     libasound2-dev \
@@ -45,6 +45,7 @@ RUN mkdir build && cd build && \
     cmake -G Ninja -DWARNINGS_AS_ERRORS=OFF -DCMAKE_BUILD_TYPE=RelWithAssert -DGR_ENABLE_BLOCK_REGISTRY=OFF -DENABLE_TESTING=OFF -DENABLE_EXAMPLES=OFF .. && \
     ninja -j1 && ninja install && cp /opt/gnuradio4/build/core/libgnuradio-blocklib-core.so /usr/local/lib/ \
     && find /opt/gnuradio4/blocks -type d -name 'gnuradio-4.0' -exec cp -r {} /usr/local/include/ \; \
+    && find /opt/gnuradio4/algorithm -type d -name 'gnuradio-4.0' -exec cp -r {} /usr/local/include/ \; \
     && find /opt/gnuradio4/meta -type d -name 'gnuradio-4.0' -exec cp -r {} /usr/local/include/ \; 
 
 # Copy your source tree (assume it lives next to Dockerfile)
