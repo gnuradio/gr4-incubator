@@ -56,6 +56,7 @@ RUN mkdir build && cd build && \
     && find /opt/gnuradio4/meta -type d -name 'gnuradio-4.0' -exec cp -r {} /usr/local/include/ \; \
     && find /opt/gnuradio4/algorithm -type d -name 'gnuradio-4.0' -exec cp -r {} /usr/local/include/ \; 
 
+
 # Copy your source tree (assume it lives next to Dockerfile)
 COPY . /opt/gr4-incubator
 
