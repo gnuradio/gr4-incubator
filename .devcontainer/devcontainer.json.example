@@ -9,7 +9,9 @@
   "runArgs": [
     "--network=host",
     "--device=/dev/snd",
-    "--group-add=audio"
+    "--group-add=audio",
+    "--privileged",
+    "--device=/dev/bus/usb:/dev/bus/usb"
   ],
 
   // Mount Pulse/PipeWire socket + cookie so Pulse audio works from the container

@@ -13,6 +13,10 @@ gr4_blocklib_dep = declare_dependency(
   dependencies: [],
   include_directories: include_directories('/usr/local/include')
 )
+soapysdr_dep = dependency('SoapySDR', required: true)
+gr4_soapy_blocks_dep = declare_dependency(
+  include_directories: include_directories('/usr/local/include')
+)
 
 
 # ut_dep = dependency('boost-ut')

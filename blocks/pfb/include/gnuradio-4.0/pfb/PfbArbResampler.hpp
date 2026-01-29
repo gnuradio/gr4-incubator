@@ -83,17 +83,17 @@ struct PfbArbResampler : Block<PfbArbResampler<T, TAPS_T>, gr::Resampling<>, gr:
     template<class InputSpanLike, class OutputSpanLike>
     gr::work::Status processBulk(InputSpanLike& inSamples, OutputSpanLike& outSamples) {
         static std::atomic<std::size_t> call_id{0};
-        // const bool debug = std::getenv("GR4_PFB_DEBUG") != nullptr;
-        const std::size_t call = ++call_id;
+        const bool debug = std::getenv("GR4_PFB_DEBUG") != nullptr;
+        const std::size_t call = debug ? ++call_id : 0;
 
         const std::size_t nin = inSamples.size();
         const std::size_t nout = outSamples.size();
 
-        // if (debug) {
-        //     std::fprintf(stderr,
-        //                  "[PfbArbResampler] call=%zu nin=%zu nout=%zu hist=%zu taps_per_filter=%zu rate=%.6f\n",
-        //                  call, nin, nout, _historyBuffer.size(), _taps_per_filter, rate);
-        // }
+        if (debug) {
+            std::fprintf(stderr,
+                         "[PfbArbResampler] call=%zu nin=%zu nout=%zu hist=%zu taps_per_filter=%zu rate=%.6f\n",
+                         call, nin, nout, _historyBuffer.size(), _taps_per_filter, rate);
+        }
 
         if constexpr (requires { _historyBuffer.resize(std::size_t{}); }) {
             const std::size_t need = (_taps_per_filter > 0 ? _taps_per_filter - 1 : 0) + nin;

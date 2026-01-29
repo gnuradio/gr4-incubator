@@ -6,6 +6,8 @@
 #include <gnuradio-4.0/Scheduler.hpp>
 #include <gnuradio-4.0/PluginLoader.hpp>
 #include <gnuradio-4.0/basic/Converters.hpp>
+#include <gnuradio-4.0/zeromq/ZmqPullSource.hpp>
+#include <gnuradio-4.0/soapysdr/SoapyRx.hpp>
 #include <gnuradio-4.0/fileio/BasicFileIo.hpp>
 #include <gnuradio-4.0/analog/QuadratureDemod.hpp>
 #include <gnuradio-4.0/filter/time_domain_filter.hpp>
@@ -26,12 +28,36 @@ int main(int argc, char** argv) {
     CLI::App app{"Audio File Source example through ZMQ "};
 
     std::string filename;
-    double quad_rate = 400e3;
+    double      quad_rate = 400e3;
+    std::string source_type = "file";
+    bool        repeat_file = false;
+    std::string zmq_endpoint = "tcp://localhost:5557";
+    int         zmq_timeout = 10;
+    bool        zmq_bind = true;
+    std::string soapy_driver;
+    std::string soapy_args;
+    double      soapy_freq = 96e6;
+    double      soapy_bw = 200e3;
+    double      soapy_gain = 10.0;
+    std::string soapy_antenna;
+    std::size_t soapy_channel = 0;
 
+    app.add_option("--source", source_type, "Input source: file|zmq|soapy")
+        ->check(CLI::IsMember({"file", "zmq", "soapy"}));
     app.add_option("-f,--file", filename, "Input file (fc32)")
-        ->required()
         ->check(CLI::ExistingFile);
-    app.add_option("-r,--rate", quad_rate, "Sample Rate of file");
+    app.add_option("--repeat", repeat_file, "Repeat file source");
+    app.add_option("-r,--rate", quad_rate, "Sample rate (input sample rate in Hz)");
+    app.add_option("--zmq-endpoint", zmq_endpoint, "ZMQ PULL endpoint");
+    app.add_option("--zmq-timeout", zmq_timeout, "ZMQ poll timeout (ms)");
+    app.add_option("--zmq-bind", zmq_bind, "ZMQ bind (true) or connect (false)");
+    app.add_option("--soapy-driver", soapy_driver, "SoapySDR driver (e.g., rtlsdr)");
+    app.add_option("--soapy-args", soapy_args, "SoapySDR device args");
+    app.add_option("--soapy-freq", soapy_freq, "SoapySDR center frequency (Hz)");
+    app.add_option("--soapy-bw", soapy_bw, "SoapySDR bandwidth (Hz)");
+    app.add_option("--soapy-gain", soapy_gain, "SoapySDR gain (dB)");
+    app.add_option("--soapy-antenna", soapy_antenna, "SoapySDR antenna name");
+    app.add_option("--soapy-channel", soapy_channel, "SoapySDR RX channel index");
 
     CLI11_PARSE(app, argc, argv);
 
@@ -47,12 +73,6 @@ int main(int argc, char** argv) {
     double max_dev = 75e3;
     double fm_demod_gain = quad_rate / (2 * M_PI * max_dev);
 
-
-    auto&   source = fg.emplaceBlock<gr::blocks::fileio::BasicFileSource<T>>({
-        {"file_name", filename},
-        {"repeat", false},
-        {"disconnect_on_done", true},
-    });
 
     auto& quad_demod = fg.emplaceBlock<gr::analog::QuadratureDemod<TR>>({
         {"gain", fm_demod_gain},
@@ -119,12 +139,48 @@ int main(int argc, char** argv) {
 
     const char* connection_error = "connection_error";
 
+    if (source_type == "file") {
+        if (filename.empty()) {
+            throw std::runtime_error("source=file requires --file");
+        }
+        auto& source = fg.emplaceBlock<gr::blocks::fileio::BasicFileSource<T>>({
+            {"file_name", filename},
+            {"repeat", repeat_file},
+            {"disconnect_on_done", true},
+        });
+        if (fg.connect<"out">(source).to<"in">(quad_demod) != gr::ConnectionResult::SUCCESS) {
+            throw gr::exception(connection_error);
+        }
+    } else if (source_type == "zmq") {
+        auto& source = fg.emplaceBlock<gr::zeromq::ZmqPullSource<T>>({
+            {"endpoint", zmq_endpoint},
+            {"timeout", zmq_timeout},
+            {"bind", zmq_bind},
+        });
+        if (fg.connect<"out">(source).to<"in">(quad_demod) != gr::ConnectionResult::SUCCESS) {
+            throw gr::exception(connection_error);
+        }
+    } else if (source_type == "soapy") {
+        auto& source = fg.emplaceBlock<gr::soapysdr::SoapyRx<T>>({
+            {"device", soapy_driver},
+            {"device_args", soapy_args},
+            {"sample_rate", static_cast<float>(quad_rate)},
+            {"channel", static_cast<gr::Size_t>(soapy_channel)},
+            {"center_frequency", soapy_freq},
+            {"bandwidth", soapy_bw},
+            {"gain", soapy_gain},
+            {"antenna", soapy_antenna},
+        });
+        if (fg.connect<"out">(source).to<"in">(quad_demod) != gr::ConnectionResult::SUCCESS) {
+            throw gr::exception(connection_error);
+        }
+    } else {
+        throw std::runtime_error("unknown source type");
+    }
+
     // if (fg.connect<"out">(source).to<"in">(sink) != gr::ConnectionResult::SUCCESS) {
     //     throw gr::exception(connection_error);
     // }
-    if (fg.connect<"out">(source).to<"in">(quad_demod) != gr::ConnectionResult::SUCCESS) {
-        throw gr::exception(connection_error);
-    }
     if (fg.connect<"out">(quad_demod).to<"in">(resampler) != gr::ConnectionResult::SUCCESS) {
         throw gr::exception(connection_error);
     }
