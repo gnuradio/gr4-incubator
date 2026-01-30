@@ -41,6 +41,9 @@ int main(int argc, char** argv) {
     double      soapy_gain = 10.0;
     std::string soapy_antenna;
     std::size_t soapy_channel = 0;
+    std::size_t audio_frames_per_buf = 0;
+    double      audio_latency_s = 0.0;
+    bool        audio_ignore_tag_sample_rate = false;
 
     app.add_option("--source", source_type, "Input source: file|zmq|soapy")
         ->check(CLI::IsMember({"file", "zmq", "soapy"}));
@@ -58,6 +61,9 @@ int main(int argc, char** argv) {
     app.add_option("--soapy-gain", soapy_gain, "SoapySDR gain (dB)");
     app.add_option("--soapy-antenna", soapy_antenna, "SoapySDR antenna name");
     app.add_option("--soapy-channel", soapy_channel, "SoapySDR RX channel index");
+    app.add_option("--audio-frames-per-buf", audio_frames_per_buf, "RtAudio frames per buffer (0 = default)");
+    app.add_option("--audio-latency", audio_latency_s, "RtAudio target latency seconds (0 = default)");
+    app.add_flag("--audio-ignore-tag-sample-rate", audio_ignore_tag_sample_rate, "Ignore sample_rate tags in RtAudioSink");
 
     CLI11_PARSE(app, argc, argv);
 
@@ -81,7 +87,7 @@ int main(int argc, char** argv) {
 
     auto& deemph_filter = fg.emplaceBlock<gr::analog::FmDeemphasisFilter<TR>>({
         {"sample_rate", static_cast<float>(quad_rate)},
-        {"max_dev", max_dev},
+        {"tau", 75e-6f},
     });
 
 
@@ -89,19 +95,31 @@ int main(int argc, char** argv) {
     double rate = 32e3 / quad_rate;
     size_t num_filters = 32;
 
-    auto& resampler = fg.emplaceBlock<gr::pfb::PfbArbResampler<TR>>({
+    gr::property_map resamp_props{
         {"rate", rate },
         {"taps", gr::pfb::create_taps<TR>(rate, num_filters, stop_band_attenuation)},
         {"num_filters", num_filters},
         {"stop_band_attenuation", stop_band_attenuation},
-    });
+    };
+
+    auto& resampler = fg.emplaceBlock<gr::pfb::PfbArbResampler<TR>>(resamp_props);
 
 
-    auto& audio_sink = fg.emplaceBlock<gr::audio::RtAudioSink<TR>>({
-        {"sample_rate",32000},
-        {"channels_fallback",1},
-        {"device_index",-1}
-    });
+    gr::property_map audio_props{
+        {"sample_rate", 32000},
+        {"channels_fallback", 1},
+        {"device_index", -1}
+    };
+    if (audio_frames_per_buf > 0) {
+        audio_props["frames_per_buf"] = static_cast<uint32_t>(audio_frames_per_buf);
+    }
+    if (audio_latency_s > 0.0) {
+        audio_props["target_latency_s"] = audio_latency_s;
+    }
+    if (audio_ignore_tag_sample_rate) {
+        audio_props["ignore_tag_sample_rate"] = true;
+    }
+    auto& audio_sink = fg.emplaceBlock<gr::audio::RtAudioSink<TR>>(audio_props);
 
     const char* connection_error = "connection_error";
 
@@ -145,36 +163,24 @@ int main(int argc, char** argv) {
     }
 
 
-    // Deemphasis filter is just an iir filter with the following ataps and btaps
-    double w_c = 1.0 / max_dev;
-    double w_ca = 2.0 * quad_rate * std::tan(w_c / (2.0 * quad_rate));
-    double k = -w_ca / (2.0 * quad_rate);
-    double z1 = -1.0;
-    double p1 = (1.0 + k) / (1.0 - k);
-    double b0 = -k / (1.0 - k);
-
-    std::vector<float> btaps{b0 * 1.0, b0 * -z1};
-    std::vector<float> ataps{1.0, -p1};
-
-    auto& iir_filter = fg.emplaceBlock<gr::filter::iir_filter<TR>>({
-        {"b", btaps},
-        {"a", ataps},
-    });
-
-
-    if (fg.connect<"out">(quad_demod).to<"in">(iir_filter) != gr::ConnectionResult::SUCCESS) {
+    if (fg.connect<"out">(quad_demod).to<"in">(deemph_filter) != gr::ConnectionResult::SUCCESS) {
         throw gr::exception(connection_error);
     }
-    if (fg.connect<"out">(iir_filter).to<"in">(resampler) != gr::ConnectionResult::SUCCESS) {
+    if (fg.connect<"out">(deemph_filter).to<"in">(resampler) != gr::ConnectionResult::SUCCESS) {
         throw gr::exception(connection_error);
     }
+
+    // if (fg.connect<"out">(quad_demod).to<"in">(resampler) != gr::ConnectionResult::SUCCESS) {
+    //     throw gr::exception(connection_error);
+    // }
+
 
     if (fg.connect<"out">(resampler).to<"in">(audio_sink) != gr::ConnectionResult::SUCCESS) {
         throw gr::exception(connection_error);
     }
 
 
-    gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::singleThreaded> sched;
+    gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::multiThreaded> sched;
     if (auto ret = sched.exchange(std::move(fg)); !ret) {
                 throw std::runtime_error(std::format("failed to initialize scheduler: {}", ret.error()));
     }

@@ -23,16 +23,15 @@ struct FmDeemphasisFilter : Block<FmDeemphasisFilter<T>> {
     PortOut<T> out;
 
     float sample_rate = 400e3f;
-    float max_dev = 75e3f;
-
-    GR_MAKE_REFLECTABLE(FmDeemphasisFilter, in, out, sample_rate, max_dev);
+    float tau = 75e-6f;
+    GR_MAKE_REFLECTABLE(FmDeemphasisFilter, in, out, sample_rate, tau);
 
     [[nodiscard]] T processOne(T input) noexcept {
         return _iir.processOne(input);
     }
 
     void settingsChanged(const property_map& /*old_settings*/, const property_map& new_settings) {
-        if (new_settings.contains("sample_rate") || new_settings.contains("max_dev")) {
+        if (new_settings.contains("sample_rate") || new_settings.contains("tau")) {
             updateFilter();
         }
     }
@@ -54,8 +53,8 @@ private:
 
     [[nodiscard]] std::pair<std::vector<T>, std::vector<T>> computeTaps() const {
         const double sr = static_cast<double>(sample_rate);
-        const double md = static_cast<double>(max_dev);
-        const double w_c = 1.0 / md;
+        const double tau_s = static_cast<double>(tau);
+        const double w_c = 1.0 / tau_s;
         const double w_ca = 2.0 * sr * std::tan(w_c / (2.0 * sr));
         const double k = -w_ca / (2.0 * sr);
         const double z1 = -1.0;
