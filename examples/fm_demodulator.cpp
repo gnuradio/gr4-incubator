@@ -10,7 +10,7 @@
 #include <gnuradio-4.0/soapysdr/SoapyRx.hpp>
 #include <gnuradio-4.0/fileio/BasicFileIo.hpp>
 #include <gnuradio-4.0/analog/QuadratureDemod.hpp>
-#include <gnuradio-4.0/filter/time_domain_filter.hpp>
+#include <gnuradio-4.0/analog/FmDeemphasisFilter.hpp>
 #include <gnuradio-4.0/audio/RtAudioSink.hpp>
 #include <gnuradio-4.0/pfb/PfbArbResampler.hpp>
 #include <gnuradio-4.0/pfb/PfbArbResamplerTaps.hpp>
@@ -78,45 +78,11 @@ int main(int argc, char** argv) {
         {"gain", fm_demod_gain},
     });
 
-    // local audio playback; no ZMQ blocks in this flowgraph
 
-
-    // Deemphasis filter is just an iir filter with the following ataps and btaps
-    double w_c = 1.0 / max_dev;
-    double w_ca = 2.0 * quad_rate * std::tan(w_c / (2.0 * quad_rate));
-    double k = -w_ca / (2.0 * quad_rate);
-    double z1 = -1.0;
-    double p1 = (1.0 + k) / (1.0 - k);
-    double b0 = -k / (1.0 - k);
-
-    std::vector<float> btaps{b0 * 1.0, b0 * -z1};
-    std::vector<float> ataps{1.0, -p1};
-
-    auto& iir_filter = fg.emplaceBlock<gr::filter::iir_filter<TR>>({
-        {"b", btaps},
-        {"a", ataps},
+    auto& deemph_filter = fg.emplaceBlock<gr::analog::FmDeemphasisFilter<TR>>({
+        {"sample_rate", static_cast<float>(quad_rate)},
+        {"max_dev", max_dev},
     });
-
-    // def create_taps(numchans, atten=100):
-    //     # Create a filter that covers the full bandwidth of the input signal
-    //     bw = 0.4
-    //     tb = 0.2
-    //     ripple = 0.1
-    //     while True:
-    //         try:
-    //             taps = optfir.low_pass(1, numchans, bw, bw + tb, ripple, atten)
-    //             return taps
-    //         except ValueError as e:
-    //             # This shouldn't happen, unless numchans is strange
-    //             raise RuntimeError("couldn't design filter; this probably constitutes a bug")
-    //         except RuntimeError:
-    //             ripple += 0.01
-    //             print("Warning: set ripple to %.4f dB. If this is a problem, adjust the attenuation or create your own filter taps." % (ripple))
-
-    //             # Build in an exit strategy; if we've come this far, it ain't working.
-    //             if(ripple >= 1.0):
-    //                 raise RuntimeError(
-    //                     "optfir could not generate an appropriate filter.")
 
 
     double stop_band_attenuation = 80.0;
@@ -178,16 +144,31 @@ int main(int argc, char** argv) {
         throw std::runtime_error("unknown source type");
     }
 
-    // if (fg.connect<"out">(source).to<"in">(sink) != gr::ConnectionResult::SUCCESS) {
-    //     throw gr::exception(connection_error);
-    // }
-    if (fg.connect<"out">(quad_demod).to<"in">(resampler) != gr::ConnectionResult::SUCCESS) {
+
+    // Deemphasis filter is just an iir filter with the following ataps and btaps
+    double w_c = 1.0 / max_dev;
+    double w_ca = 2.0 * quad_rate * std::tan(w_c / (2.0 * quad_rate));
+    double k = -w_ca / (2.0 * quad_rate);
+    double z1 = -1.0;
+    double p1 = (1.0 + k) / (1.0 - k);
+    double b0 = -k / (1.0 - k);
+
+    std::vector<float> btaps{b0 * 1.0, b0 * -z1};
+    std::vector<float> ataps{1.0, -p1};
+
+    auto& iir_filter = fg.emplaceBlock<gr::filter::iir_filter<TR>>({
+        {"b", btaps},
+        {"a", ataps},
+    });
+
+
+    if (fg.connect<"out">(quad_demod).to<"in">(iir_filter) != gr::ConnectionResult::SUCCESS) {
+        throw gr::exception(connection_error);
+    }
+    if (fg.connect<"out">(iir_filter).to<"in">(resampler) != gr::ConnectionResult::SUCCESS) {
         throw gr::exception(connection_error);
     }
 
-    // if (fg.connect<"out">(zmq_source).to<"in">(audio_sink) != gr::ConnectionResult::SUCCESS) {
-    //     throw gr::exception(connection_error);
-    // }
     if (fg.connect<"out">(resampler).to<"in">(audio_sink) != gr::ConnectionResult::SUCCESS) {
         throw gr::exception(connection_error);
     }
