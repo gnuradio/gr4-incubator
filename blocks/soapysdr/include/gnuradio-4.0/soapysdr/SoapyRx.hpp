@@ -5,6 +5,7 @@
 #include <cctype>
 #include <cstdint>
 #include <format>
+#include <print>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -36,12 +37,13 @@ struct SoapyRx : Block<SoapyRx<T>> {
     double      bandwidth = 0.0;
     double      gain = 0.0;
     std::string antenna;
+    bool        debug = false;
 
     std::uint32_t max_chunk_size = 8192U;
     std::uint32_t stream_timeout_us = 1'000U;
     gr::Size_t    max_overflow_count = 10U;
 
-    GR_MAKE_REFLECTABLE(SoapyRx, out, device, device_args, sample_rate, channel, center_frequency, bandwidth, gain, antenna, max_chunk_size, stream_timeout_us, max_overflow_count);
+    GR_MAKE_REFLECTABLE(SoapyRx, out, device, device_args, sample_rate, channel, center_frequency, bandwidth, gain, antenna, debug, max_chunk_size, stream_timeout_us, max_overflow_count);
 
     SoapyRx() = default;
 
@@ -51,6 +53,52 @@ struct SoapyRx : Block<SoapyRx<T>> {
 
     void stop() {
         closeDevice();
+    }
+
+    void settingsChanged(const property_map& /*old_settings*/, const property_map& new_settings) {
+        if (debug || std::getenv("GR4_SOAPY_DEBUG")) {
+            std::print(stderr, "[SoapyRx] settingsChanged keys:");
+            for (const auto& [key, _] : new_settings) {
+                std::print(stderr, " {}", key);
+            }
+            std::println(stderr, "");
+        }
+        if (!_dev) {
+            if (debug || std::getenv("GR4_SOAPY_DEBUG")) {
+                std::println(stderr, "[SoapyRx] settingsChanged while device not initialized");
+            }
+            return;
+        }
+
+        const bool device_changed = new_settings.contains("device") || new_settings.contains("device_args");
+        const bool rate_changed = new_settings.contains("sample_rate") || new_settings.contains("channel");
+
+        if (device_changed || rate_changed) {
+            if (debug || std::getenv("GR4_SOAPY_DEBUG")) {
+                std::println(stderr, "[SoapyRx] reinit device (device/rate/channel changed)");
+            }
+            closeDevice();
+            openDevice();
+            return;
+        }
+
+        const auto chan = static_cast<std::size_t>(channel);
+        if (new_settings.contains("center_frequency")) {
+            _dev->setFrequency(SOAPY_SDR_RX, chan, center_frequency);
+            center_frequency = _dev->getFrequency(SOAPY_SDR_RX, chan);
+        }
+        if (new_settings.contains("bandwidth")) {
+            if (bandwidth > 0.0) {
+                _dev->setBandwidth(SOAPY_SDR_RX, chan, bandwidth);
+            }
+        }
+        if (new_settings.contains("gain")) {
+            _dev->setGain(SOAPY_SDR_RX, chan, gain);
+            gain = _dev->getGain(SOAPY_SDR_RX, chan);
+        }
+        if (new_settings.contains("antenna") && !antenna.empty()) {
+            _dev->setAntenna(SOAPY_SDR_RX, chan, antenna);
+        }
     }
 
     [[nodiscard]] gr::work::Status processBulk(OutputSpanLike auto& output) {

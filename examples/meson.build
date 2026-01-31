@@ -31,3 +31,8 @@ exe = executable('fm_demodulator', 'fm_demodulator.cpp',
   install : true,
   include_directories: inc_dirs,
   dependencies: deps)
+
+exe = executable('fm_demodulator_cli', 'fm_demodulator_cli.cpp',
+  install : true,
+  include_directories: inc_dirs,
+  dependencies: deps + [dependency('ncurses', required: true)])
