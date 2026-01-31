@@ -1,0 +1,14 @@
+[wrap-file]
+directory = implot-0.17
+source_url = https://github.com/epezent/implot/archive/refs/tags/v0.17.zip
+source_filename = implot-0.17.zip
+source_hash = 112e4da5d3b83082b4e0671e19b5ea11ebc8afe2794162d020d3fd8d0ea5a9ee
+source_fallback_url = https://wrapdb.mesonbuild.com/v2/implot_0.17-1/get_source/implot-0.17.zip
+patch_filename = implot_0.17-1_patch.zip
+patch_url = https://wrapdb.mesonbuild.com/v2/implot_0.17-1/get_patch
+patch_fallback_url = https://github.com/mesonbuild/wrapdb/releases/download/implot_0.17-1/implot_0.17-1_patch.zip
+patch_hash = f42ce5064bb351eab97f0dfe553e77a848c94ce8a93de6e4993d96ec65cc3c1c
+wrapdb_version = 0.17-1
+
+[provide]
+dependency_names = implot
