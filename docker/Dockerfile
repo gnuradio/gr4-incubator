@@ -8,11 +8,19 @@ RUN apt-get update -q  && apt-get install --no-install-recommends -qy wget gpg c
     clang-20 clang-tools-20 libc++-20-dev libc++abi-20-dev gdb lldb-20 gcc-15 g++-15 \
     ccache mold \
     python3-dev pybind11-dev libgtest-dev python3-numpy pkg-config \
+    libsoapysdr-dev soapysdr-tools soapysdr-module-all \
+    uhd-host libuhd-dev usbutils libusb-dev \
     libasound2-dev \
     libpulse-dev \
     libjack-jackd2-dev jackd2 \
     pulseaudio-utils alsa-utils libasound2-plugins \
     && rm -rf /var/lib/apt/lists/*
+
+# UHD: download only B200 images and install udev rules
+ENV UHD_IMAGES_DIR=/usr/share/uhd/images
+RUN mkdir -p /etc/udev/rules.d/ \
+    && uhd_images_downloader --refetch \
+    && cp /usr/libexec/uhd/utils/uhd-usrp.rules /etc/udev/rules.d/
 
 
 RUN locale-gen en_US.UTF-8 && echo 'LANG="en_US.UTF-8"'>/etc/default/locale \
@@ -45,8 +53,8 @@ RUN mkdir build && cd build && \
     cmake -G Ninja -DWARNINGS_AS_ERRORS=OFF -DCMAKE_BUILD_TYPE=RelWithAssert -DGR_ENABLE_BLOCK_REGISTRY=OFF -DENABLE_TESTING=OFF -DENABLE_EXAMPLES=OFF .. && \
     ninja -j1 && ninja install && cp /opt/gnuradio4/build/core/libgnuradio-blocklib-core.so /usr/local/lib/ \
     && find /opt/gnuradio4/blocks -type d -name 'gnuradio-4.0' -exec cp -r {} /usr/local/include/ \; \
-    && find /opt/gnuradio4/algorithm -type d -name 'gnuradio-4.0' -exec cp -r {} /usr/local/include/ \; \
-    && find /opt/gnuradio4/meta -type d -name 'gnuradio-4.0' -exec cp -r {} /usr/local/include/ \; 
+    && find /opt/gnuradio4/meta -type d -name 'gnuradio-4.0' -exec cp -r {} /usr/local/include/ \; \
+    && find /opt/gnuradio4/algorithm -type d -name 'gnuradio-4.0' -exec cp -r {} /usr/local/include/ \; 
 
 # Copy your source tree (assume it lives next to Dockerfile)
 COPY . /opt/gr4-incubator
@@ -57,7 +65,7 @@ ENV BUILD_ACTIVE_PROJECT=${BUILD_ACTIVE_PROJECT}
 
 # Conditionally build and install if set
 RUN if [ "$BUILD_ACTIVE_PROJECT" = "1" ]; then \
-      cd /opt/gr4-incubator && meson setup build --libdir=/usr/local/lib && cd build && ninja && ninja install && rm -rf /opt/gr4-incubator; \
+      cd /opt/gr4-incubator && meson setup build --libdir=/usr/local/lib && cd build && ninja -j4 && ninja install && rm -rf /opt/gr4-incubator; \
     else \
       echo "Skipping active project build/install"; \
     fi
@@ -68,5 +76,3 @@ RUN echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/ubuntu
 USER ubuntu
 WORKDIR /code
 ENTRYPOINT ["/bin/bash", "-l", "-c"]
-
-

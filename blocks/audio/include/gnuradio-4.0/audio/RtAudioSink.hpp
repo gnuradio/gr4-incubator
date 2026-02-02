@@ -57,8 +57,9 @@ struct RtAudioSink : Block<RtAudioSink<T>> {
     A<int32_t,  "device_index",    Doc<"RtAudio output device index (-1 = default)">, Visible>        device_index   = -1;
     A<bool,     "dither",          Doc<"Enable RtAudio dither (if backend supports it)">>             dither         = false;
     A<double,   "target_latency_s",Doc<"Target FIFO latency seconds">, Visible>                        target_latency_s = 0.100;
+    A<bool,     "ignore_tag_sample_rate", Doc<"Ignore sample_rate tags and use fallback sample_rate">, Visible> ignore_tag_sample_rate = false;
 
-    GR_MAKE_REFLECTABLE(RtAudioSink, in, sample_rate, channels_fallback, frames_per_buf, device_index, dither, target_latency_s);
+    GR_MAKE_REFLECTABLE(RtAudioSink, in, sample_rate, channels_fallback, frames_per_buf, device_index, dither, target_latency_s, ignore_tag_sample_rate);
 
     // ---- Tag keys (edit if your tag names differ) ----
     static constexpr const char* kTagNumChannels = "num_channels";
@@ -174,8 +175,10 @@ private:
         if (auto v = get_uint_(*props, kTagNumChannels)) {
             _pending_channels = *v;
         }
-        if (auto v = get_uint_(*props, kTagSampleRate)) {
-            _pending_sr = *v;
+        if (!ignore_tag_sample_rate) {
+            if (auto v = get_uint_(*props, kTagSampleRate)) {
+                _pending_sr = *v;
+            }
         }
     }
 

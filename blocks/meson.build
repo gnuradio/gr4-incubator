@@ -1,4 +1,6 @@
 subdir('basic')
 subdir('zeromq')
+subdir('pfb')
 subdir('analog')
 subdir('audio')
+subdir('soapysdr')

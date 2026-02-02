@@ -13,6 +13,10 @@ gr4_blocklib_dep = declare_dependency(
   dependencies: [],
   include_directories: include_directories('/usr/local/include')
 )
+soapysdr_dep = dependency('SoapySDR', required: true)
+gr4_soapy_blocks_dep = declare_dependency(
+  include_directories: include_directories('/usr/local/include')
+)
 
 
 # ut_dep = dependency('boost-ut')
@@ -27,3 +31,6 @@ pmt_conv_dep = dependency('pmt_converter')
 # dependency('fmt', fallback: ['fmt', 'fmt_dep'])
 
 subdir('blocks')
+if get_option('enable_examples')
+subdir('examples')
+endif
