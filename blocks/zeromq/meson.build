@@ -7,7 +7,7 @@ install_subdir(
   install_dir: join_paths(get_option('includedir'), 'gnuradio-4.0')
 )
 
-deps = [gr4_dep, pmt_conv_dep, zmq_dep]
+deps = [gr4_dep, zmq_dep, pmt_converter_dep]
 # # Interface library
 # gr4_zmq_blocks = library(
 #   'gr4-zmq-blocks',
@@ -19,7 +19,8 @@ deps = [gr4_dep, pmt_conv_dep, zmq_dep]
 
 # Expose the dependency for subprojects or installation
 gr4_zmq_blocks_dep = declare_dependency(
-  include_directories: inc_dirs
+  include_directories: inc_dirs,
+  dependencies: deps
 )
 
 if get_option('enable_plugins')
@@ -48,4 +49,3 @@ pkgconfig.generate(
   subdirs: 'gnuradio-4.0/zeromq',
 )
 endif
-

@@ -9,6 +9,7 @@
 #include <limits>
 #include <cmath>
 #include <mutex>
+#include <memory_resource>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -36,22 +37,35 @@
 using namespace gr;
 
 namespace {
-template <typename Variant>
-std::string format_variant(const Variant& v) {
-    std::string out;
-    std::visit([&](const auto& x) {
-        using X = std::decay_t<decltype(x)>;
-        if constexpr (std::is_same_v<X, std::monostate>) {
-            out = "<unset>";
-        } else if constexpr (std::is_same_v<X, std::string>) {
-            out = x;
-        } else if constexpr (std::is_arithmetic_v<X>) {
-            out = std::format("{}", x);
-        } else {
-            out = "<unsupported>";
-        }
-    }, v);
+gr::property_map make_props(std::initializer_list<std::pair<std::string_view, gr::pmt::Value>> init) {
+    gr::property_map out;
+    auto*            mr = out.get_allocator().resource();
+    for (const auto& [key, value] : init) {
+        out.emplace(gr::pmt::Value::Map::value_type{std::pmr::string(key.data(), key.size(), mr), value});
+    }
     return out;
+}
+
+std::string format_value(const gr::pmt::Value& v) {
+    if (v.is_string()) {
+        return std::string(v.value_or(std::string_view{}));
+    }
+    if (auto f = v.get_if<float>()) {
+        return std::format("{}", *f);
+    }
+    if (auto d = v.get_if<double>()) {
+        return std::format("{}", *d);
+    }
+    if (auto u = v.get_if<uint64_t>()) {
+        return std::format("{}", *u);
+    }
+    if (auto i = v.get_if<int64_t>()) {
+        return std::format("{}", *i);
+    }
+    if (auto b = v.get_if<bool>()) {
+        return *b ? "true" : "false";
+    }
+    return "<unsupported>";
 }
 
 float parse_freq_hz(const std::string& token) {
@@ -126,29 +140,34 @@ int main(int argc, char** argv) {
 
     Graph fg;
 
-    auto& quad_demod = fg.emplaceBlock<gr::analog::QuadratureDemod<TR>>({{"gain", quad_rate / (2 * M_PI * 75e3)}});
-    auto& deemph_filter = fg.emplaceBlock<gr::analog::FmDeemphasisFilter<TR>>({{"sample_rate", static_cast<float>(quad_rate)}, {"tau", 75e-6f}});
+    auto& quad_demod = fg.emplaceBlock<gr::analog::QuadratureDemod<TR>>(
+        make_props({{"gain", gr::pmt::Value(quad_rate / (2 * M_PI * 75e3))}}));
+    auto& deemph_filter = fg.emplaceBlock<gr::analog::FmDeemphasisFilter<TR>>(
+        make_props({{"sample_rate", gr::pmt::Value(static_cast<float>(quad_rate))}, {"tau", gr::pmt::Value(75e-6f)}}));
 
     double stop_band_attenuation = 80.0;
     double rate = 32e3 / quad_rate;
     size_t num_filters = 32;
-    auto& resampler = fg.emplaceBlock<gr::pfb::PfbArbResampler<TR>>({
-        {"rate", rate},
-        {"taps", gr::pfb::create_taps<TR>(rate, num_filters, stop_band_attenuation)},
-        {"num_filters", num_filters},
-        {"stop_band_attenuation", stop_band_attenuation},
-    });
+    auto taps_vec = gr::pfb::create_taps<TR>(rate, num_filters, stop_band_attenuation);
+    auto taps_val = gr::pmt::Value(gr::Tensor<TR>(gr::data_from, taps_vec));
+    auto& resampler = fg.emplaceBlock<gr::pfb::PfbArbResampler<TR>>(make_props({
+        {"rate", gr::pmt::Value(rate)},
+        {"taps", std::move(taps_val)},
+        {"num_filters", gr::pmt::Value(num_filters)},
+        {"stop_band_attenuation", gr::pmt::Value(stop_band_attenuation)},
+    }));
 
     constexpr std::string_view kSoapyName = "soapy_rx";
     constexpr std::string_view kVolumeName = "volume";
 
-    auto& volume_block = fg.emplaceBlock<gr::blocks::math::MultiplyConst<TR>>({{"value", volume}, {"name", std::string(kVolumeName)}});
+    auto& volume_block = fg.emplaceBlock<gr::blocks::math::MultiplyConst<TR>>(
+        make_props({{"value", gr::pmt::Value(volume)}, {"name", gr::pmt::Value(std::string(kVolumeName))}}));
 
-    auto& audio_sink = fg.emplaceBlock<gr::audio::RtAudioSink<TR>>({
-        {"sample_rate", 32000},
-        {"channels_fallback", 1},
-        {"device_index", -1},
-    });
+    auto& audio_sink = fg.emplaceBlock<gr::audio::RtAudioSink<TR>>(make_props({
+        {"sample_rate", gr::pmt::Value(32000)},
+        {"channels_fallback", gr::pmt::Value(1)},
+        {"device_index", gr::pmt::Value(-1)},
+    }));
 
     const char* connection_error = "connection_error";
 
@@ -156,27 +175,27 @@ int main(int argc, char** argv) {
         if (filename.empty()) {
             throw std::runtime_error("source=file requires --file");
         }
-        auto& source = fg.emplaceBlock<gr::blocks::fileio::BasicFileSource<T>>({
-            {"file_name", filename},
-            {"repeat", true},
-            {"disconnect_on_done", false},
-        });
+        auto& source = fg.emplaceBlock<gr::blocks::fileio::BasicFileSource<T>>(make_props({
+            {"file_name", gr::pmt::Value(filename)},
+            {"repeat", gr::pmt::Value(true)},
+            {"disconnect_on_done", gr::pmt::Value(false)},
+        }));
         if (fg.connect<"out">(source).to<"in">(quad_demod) != gr::ConnectionResult::SUCCESS) {
             throw gr::exception(connection_error);
         }
     } else {
-        auto& source = fg.emplaceBlock<gr::soapysdr::SoapyRx<T>>({
-            {"device", soapy_driver},
-            {"device_args", soapy_args},
-            {"sample_rate", static_cast<float>(quad_rate)},
-            {"channel", static_cast<gr::Size_t>(soapy_channel)},
-            {"center_frequency", soapy_freq},
-            {"bandwidth", soapy_bw},
-            {"gain", soapy_gain},
-            {"antenna", soapy_antenna},
-            {"debug", soapy_debug},
-            {"name", std::string(kSoapyName)},
-        });
+        auto& source = fg.emplaceBlock<gr::soapysdr::SoapyRx<T>>(make_props({
+            {"device", gr::pmt::Value(soapy_driver)},
+            {"device_args", gr::pmt::Value(soapy_args)},
+            {"sample_rate", gr::pmt::Value(static_cast<float>(quad_rate))},
+            {"channel", gr::pmt::Value(static_cast<gr::Size_t>(soapy_channel))},
+            {"center_frequency", gr::pmt::Value(soapy_freq)},
+            {"bandwidth", gr::pmt::Value(soapy_bw)},
+            {"gain", gr::pmt::Value(soapy_gain)},
+            {"antenna", gr::pmt::Value(soapy_antenna)},
+            {"debug", gr::pmt::Value(soapy_debug)},
+            {"name", gr::pmt::Value(std::string(kSoapyName))},
+        }));
         if (fg.connect<"out">(source).to<"in">(quad_demod) != gr::ConnectionResult::SUCCESS) {
             throw gr::exception(connection_error);
         }
@@ -200,9 +219,15 @@ int main(int argc, char** argv) {
         throw std::runtime_error(std::format("failed to initialize scheduler: {}", ret.error()));
     }
     if (watchdog_timeout_ms == 0) {
-        sched.settings().set({{"watchdog_timeout", static_cast<gr::Size_t>(60'000)}, {"timeout_inactivity_count", std::numeric_limits<gr::Size_t>::max()}});
+        sched.settings().set(make_props({
+            {"watchdog_timeout", gr::pmt::Value(static_cast<gr::Size_t>(60'000))},
+            {"timeout_inactivity_count", gr::pmt::Value(std::numeric_limits<gr::Size_t>::max())},
+        }));
     } else {
-        sched.settings().set({{"watchdog_timeout", static_cast<gr::Size_t>(watchdog_timeout_ms)}, {"timeout_inactivity_count", static_cast<gr::Size_t>(watchdog_inactive_count)}});
+        sched.settings().set(make_props({
+            {"watchdog_timeout", gr::pmt::Value(static_cast<gr::Size_t>(watchdog_timeout_ms))},
+            {"timeout_inactivity_count", gr::pmt::Value(static_cast<gr::Size_t>(watchdog_inactive_count))},
+        }));
     }
 
     auto find_block = [&](std::string_view name) -> std::shared_ptr<gr::BlockModel> {
@@ -360,9 +385,8 @@ int main(int argc, char** argv) {
                         if (!soapy_block) {
                             status_line = "freq get ignored (source!=soapy)";
                         } else {
-                            auto m = soapy_block->settings().get(std::array<std::string, 1>{"center_frequency"});
-                            if (m.contains("center_frequency")) {
-                                status_line = "freq = " + format_variant(m.at("center_frequency"));
+                            if (auto v = soapy_block->settings().get("center_frequency")) {
+                                status_line = "freq = " + format_value(*v);
                             } else {
                                 status_line = "freq unavailable";
                             }
@@ -371,9 +395,8 @@ int main(int argc, char** argv) {
                         if (!soapy_block) {
                             status_line = "gain get ignored (source!=soapy)";
                         } else {
-                            auto m = soapy_block->settings().get(std::array<std::string, 1>{"gain"});
-                            if (m.contains("gain")) {
-                                status_line = "gain = " + format_variant(m.at("gain"));
+                            if (auto v = soapy_block->settings().get("gain")) {
+                                status_line = "gain = " + format_value(*v);
                             } else {
                                 status_line = "gain unavailable";
                             }
@@ -382,9 +405,8 @@ int main(int argc, char** argv) {
                         if (!volume_block_model) {
                             status_line = "volume get failed (block missing)";
                         } else {
-                            auto m = volume_block_model->settings().get(std::array<std::string, 1>{"value"});
-                            if (m.contains("value")) {
-                                status_line = "volume = " + format_variant(m.at("value"));
+                            if (auto v = volume_block_model->settings().get("value")) {
+                                status_line = "volume = " + format_value(*v);
                             } else {
                                 status_line = "volume unavailable";
                             }
@@ -414,7 +436,8 @@ int main(int argc, char** argv) {
                             continue;
                         }
                         float hz = parse_freq_hz(value);
-                        auto failed = soapy_block->settings().setStaged({{"center_frequency", static_cast<double>(hz)}});
+                        auto failed = soapy_block->settings().setStaged(
+                            make_props({{"center_frequency", gr::pmt::Value(static_cast<double>(hz))}}));
                         status_line = failed.empty() ? "freq staged" : "failed to stage freq";
                     } else if (key == "gain") {
                         if (!soapy_block) {
@@ -423,7 +446,8 @@ int main(int argc, char** argv) {
                             continue;
                         }
                         float g = std::stof(value);
-                        auto failed = soapy_block->settings().setStaged({{"gain", static_cast<double>(g)}});
+                        auto failed = soapy_block->settings().setStaged(
+                            make_props({{"gain", gr::pmt::Value(static_cast<double>(g))}}));
                         status_line = failed.empty() ? "gain staged" : "failed to stage gain";
                     } else if (key == "volume") {
                         float v = std::stof(value);
@@ -437,7 +461,8 @@ int main(int argc, char** argv) {
                             render();
                             continue;
                         }
-                        auto failed = volume_block_model->settings().setStaged({{"value", v}});
+                        auto failed = volume_block_model->settings().setStaged(
+                            make_props({{"value", gr::pmt::Value(v)}}));
                         status_line = failed.empty() ? "volume staged" : "failed to stage volume";
                     } else {
                         status_line = "unknown param";

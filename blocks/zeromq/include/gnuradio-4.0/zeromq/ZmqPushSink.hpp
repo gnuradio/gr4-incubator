@@ -7,14 +7,13 @@
 #include <gnuradio-4.0/Block.hpp>
 #include <gnuradio-4.0/BlockRegistry.hpp>
 #include <gnuradio-4.0/meta/reflection.hpp>
-#include <pmtv/pmt.hpp>
-#include <pmt_converter/pmt_legacy_codec.h>
+#include <gnuradio-4.0/algorithm/pmt_converter/pmt_legacy_codec.h>
 #include <zmq.hpp>
 
 namespace gr::zeromq {
 
 template<typename T>
-concept ZmqPushSinkAcceptableTypes = std::is_same_v<T, std::vector<typename T::value_type, typename T::allocator_type>> || std::is_same_v<T, std::complex<typename T::value_type>> || std::is_integral<T>::value || std::is_floating_point<T>::value || std::is_same<T, pmtv::pmt>::value;
+concept ZmqPushSinkAcceptableTypes = std::is_same_v<T, std::vector<typename T::value_type, typename T::allocator_type>> || std::is_same_v<T, std::complex<typename T::value_type>> || std::is_integral<T>::value || std::is_floating_point<T>::value || std::is_same_v<T, gr::pmt::Value>;
 
 template<ZmqPushSinkAcceptableTypes T>
 class ZmqPushSink : public gr::Block<ZmqPushSink<T>> {
@@ -62,7 +61,7 @@ public:
             zmq::message_t zmsg(size_in_bytes);
             memcpy(zmsg.data(), inData.data(), size_in_bytes);
             _socket.send(zmsg, zmq::send_flags::none);
-        } else if constexpr(std::is_same_v<T,pmtv::pmt>) {
+        } else if constexpr(std::is_same_v<T, gr::pmt::Value>) {
 
             // convert to legacy pmt, serialize, and push over socket
             for (auto& pmtObj : inData) {
@@ -80,4 +79,4 @@ public:
 
 } // namespace gr::zeromq
 
-GR_REGISTER_BLOCK("ZmqPushSink", gr::zeromq::ZmqPushSink, ([T]), [ uint8_t, int16_t, int32_t, float, std::complex<float>, std::vector<float>, std::vector<std::complex<float>>, pmtv::pmt ])
+GR_REGISTER_BLOCK("ZmqPushSink", gr::zeromq::ZmqPushSink, ([T]), [ uint8_t, int16_t, int32_t, float, std::complex<float>, std::vector<float>, std::vector<std::complex<float>>, gr::pmt::Value ])

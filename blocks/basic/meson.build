@@ -7,7 +7,7 @@ install_subdir(
 
 libname = 'gr4-basic-blocks'
 
-deps = [gr4_dep, pmt_conv_dep]
+deps = [gr4_dep]
 # Interface library
 # gr4_basic_blocks = library(
 #   libname,

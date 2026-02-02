@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <format>
 #include <cmath>
+#include <memory_resource>
 #include <optional>
 #include <print>
 #include <string>
@@ -36,6 +37,15 @@
 using namespace gr;
 
 namespace {
+
+gr::property_map make_props(std::initializer_list<std::pair<std::string_view, gr::pmt::Value>> init) {
+    gr::property_map out;
+    auto*            mr = out.get_allocator().resource();
+    for (const auto& [key, value] : init) {
+        out.emplace(gr::pmt::Value::Map::value_type{std::pmr::string(key.data(), key.size(), mr), value});
+    }
+    return out;
+}
 
 std::optional<double> parse_with_suffix(std::string_view text) {
     if (text.empty()) {
@@ -77,25 +87,28 @@ std::string format_hz(double hz) {
 }
 
 std::string format_variant(const gr::property_map& map, std::string_view key) {
-    auto it = map.find(std::string(key));
+    auto it = map.find(gr::pmt::Value::Map::key_type(std::string(key), map.get_allocator().resource()));
     if (it == map.end()) {
         return "<unset>";
     }
     const auto& v = it->second;
-    if (auto d = std::get_if<double>(&v)) {
+    if (auto d = v.get_if<double>()) {
         return std::format("{:.6f}", *d);
     }
-    if (auto f = std::get_if<float>(&v)) {
+    if (auto f = v.get_if<float>()) {
         return std::format("{:.6f}", static_cast<double>(*f));
     }
-    if (auto u = std::get_if<uint64_t>(&v)) {
+    if (auto u = v.get_if<uint64_t>()) {
         return std::format("{}", *u);
     }
-    if (auto i = std::get_if<int64_t>(&v)) {
+    if (auto i = v.get_if<int64_t>()) {
         return std::format("{}", *i);
     }
-    if (auto s = std::get_if<std::string>(&v)) {
-        return *s;
+    if (v.is_string()) {
+        return std::string(v.value_or(std::string_view{}));
+    }
+    if (auto b = v.get_if<bool>()) {
+        return *b ? "true" : "false";
     }
     return "<unsupported>";
 }
@@ -152,64 +165,63 @@ int main(int argc, char** argv) {
     double max_dev = 75e3;
     double fm_demod_gain = quad_rate / (2 * M_PI * max_dev);
 
-    auto& soapy_rx = fg.emplaceBlock<gr::soapysdr::SoapyRx<T>>({
-        {"name", "soapy_rx"},
-        {"device", soapy_driver},
-        {"device_args", soapy_args},
-        {"sample_rate", static_cast<float>(quad_rate)},
-        {"channel", static_cast<gr::Size_t>(soapy_channel)},
-        {"center_frequency", soapy_freq},
-        {"bandwidth", soapy_bw},
-        {"gain", soapy_gain},
-        {"antenna", soapy_antenna},
-    });
+    auto& soapy_rx = fg.emplaceBlock<gr::soapysdr::SoapyRx<T>>(make_props({
+        {"name", gr::pmt::Value(std::string("soapy_rx"))},
+        {"device", gr::pmt::Value(soapy_driver)},
+        {"device_args", gr::pmt::Value(soapy_args)},
+        {"sample_rate", gr::pmt::Value(static_cast<float>(quad_rate))},
+        {"channel", gr::pmt::Value(static_cast<gr::Size_t>(soapy_channel))},
+        {"center_frequency", gr::pmt::Value(soapy_freq)},
+        {"bandwidth", gr::pmt::Value(soapy_bw)},
+        {"gain", gr::pmt::Value(soapy_gain)},
+        {"antenna", gr::pmt::Value(soapy_antenna)},
+    }));
 
-    auto& quad_demod = fg.emplaceBlock<gr::analog::QuadratureDemod<TR>>({
-        {"gain", fm_demod_gain},
-    });
+    auto& quad_demod = fg.emplaceBlock<gr::analog::QuadratureDemod<TR>>(
+        make_props({{"gain", gr::pmt::Value(fm_demod_gain)}}));
 
-    auto& deemph_filter = fg.emplaceBlock<gr::analog::FmDeemphasisFilter<TR>>({
-        {"sample_rate", static_cast<float>(quad_rate)},
-        {"tau", 75e-6f},
-    });
+    auto& deemph_filter = fg.emplaceBlock<gr::analog::FmDeemphasisFilter<TR>>(
+        make_props({{"sample_rate", gr::pmt::Value(static_cast<float>(quad_rate))}, {"tau", gr::pmt::Value(75e-6f)}}));
 
     double stop_band_attenuation = 80.0;
     double rate = audio_rate / quad_rate;
     std::size_t num_filters = 32;
 
-    auto& resampler = fg.emplaceBlock<gr::pfb::PfbArbResampler<TR>>({
-        {"rate", rate},
-        {"taps", gr::pfb::create_taps<TR>(rate, num_filters, stop_band_attenuation)},
-        {"num_filters", num_filters},
-        {"stop_band_attenuation", stop_band_attenuation},
-    });
+    auto taps_vec = gr::pfb::create_taps<TR>(rate, num_filters, stop_band_attenuation);
+    auto taps_val = gr::pmt::Value(gr::Tensor<TR>(gr::data_from, taps_vec));
+    auto& resampler = fg.emplaceBlock<gr::pfb::PfbArbResampler<TR>>(make_props({
+        {"rate", gr::pmt::Value(rate)},
+        {"taps", std::move(taps_val)},
+        {"num_filters", gr::pmt::Value(num_filters)},
+        {"stop_band_attenuation", gr::pmt::Value(stop_band_attenuation)},
+    }));
 
-    auto& volume_block = fg.emplaceBlock<gr::blocks::math::MultiplyConst<TR>>({
-        {"name", "volume"},
-        {"value", static_cast<TR>(volume)},
-    });
+    auto& volume_block = fg.emplaceBlock<gr::blocks::math::MultiplyConst<TR>>(make_props({
+        {"name", gr::pmt::Value(std::string("volume"))},
+        {"value", gr::pmt::Value(static_cast<TR>(volume))},
+    }));
 
-    auto& audio_sink = fg.emplaceBlock<gr::audio::RtAudioSink<TR>>({
-        {"sample_rate", static_cast<float>(audio_rate)},
-        {"channels_fallback", 1},
-        {"device_index", -1},
-    });
+    auto& audio_sink = fg.emplaceBlock<gr::audio::RtAudioSink<TR>>(make_props({
+        {"sample_rate", gr::pmt::Value(static_cast<float>(audio_rate))},
+        {"channels_fallback", gr::pmt::Value(1)},
+        {"device_index", gr::pmt::Value(-1)},
+    }));
 
     if (audio_frames_per_buf > 0) {
-        audio_sink.settings().setStaged({{"frames_per_buf", static_cast<uint32_t>(audio_frames_per_buf)}});
+        audio_sink.settings().setStaged(make_props({{"frames_per_buf", gr::pmt::Value(static_cast<uint32_t>(audio_frames_per_buf))}}));
     }
     if (audio_latency_s > 0.0) {
-        audio_sink.settings().setStaged({{"target_latency_s", audio_latency_s}});
+        audio_sink.settings().setStaged(make_props({{"target_latency_s", gr::pmt::Value(audio_latency_s)}}));
     }
     if (audio_ignore_tag_sample_rate) {
-        audio_sink.settings().setStaged({{"ignore_tag_sample_rate", true}});
+        audio_sink.settings().setStaged(make_props({{"ignore_tag_sample_rate", gr::pmt::Value(true)}}));
     }
 
-    auto& audio_probe = fg.emplaceBlock<gr::basic::DataSink<TR>>({
-        {"name", "audio_probe"},
-        {"signal_name", "audio"},
-        {"sample_rate", static_cast<float>(audio_rate)},
-    });
+    auto& audio_probe = fg.emplaceBlock<gr::basic::DataSink<TR>>(make_props({
+        {"name", gr::pmt::Value(std::string("audio_probe"))},
+        {"signal_name", gr::pmt::Value(std::string("audio"))},
+        {"sample_rate", gr::pmt::Value(static_cast<float>(audio_rate))},
+    }));
 
     const char* connection_error = "connection_error";
 
@@ -342,7 +354,7 @@ int main(int argc, char** argv) {
         if (apply) {
             if (auto v = parse_with_suffix(freq_text.data())) {
                 if (soapy_model) {
-                    soapy_model->settings().setStaged({{"center_frequency", *v}});
+                    soapy_model->settings().setStaged(make_props({{"center_frequency", gr::pmt::Value(*v)}}));
                     status_line = std::format("freq updated -> {}", format_hz(*v));
                 }
             } else {
@@ -350,7 +362,7 @@ int main(int argc, char** argv) {
             }
             if (auto v = parse_with_suffix(gain_text.data())) {
                 if (soapy_model) {
-                    soapy_model->settings().setStaged({{"gain", *v}});
+                    soapy_model->settings().setStaged(make_props({{"gain", gr::pmt::Value(*v)}}));
                     status_line = std::format("gain updated -> {:.2f}", *v);
                 }
             } else if (gain_text[0] != '\0') {
@@ -358,7 +370,7 @@ int main(int argc, char** argv) {
             }
             if (auto v = parse_with_suffix(volume_text.data())) {
                 if (volume_model) {
-                    volume_model->settings().setStaged({{"value", static_cast<float>(*v)}});
+                    volume_model->settings().setStaged(make_props({{"value", gr::pmt::Value(static_cast<float>(*v))}}));
                     status_line = std::format("volume updated -> {:.3f}", *v);
                 }
             } else if (volume_text[0] != '\0') {
