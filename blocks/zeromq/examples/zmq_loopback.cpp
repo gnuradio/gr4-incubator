@@ -38,7 +38,7 @@ int main() {
         {"packet_size", 1024},
     });
 
-    auto& sink = fg.emplaceBlock<gr::zeromq::ZmqPushSink<pmtv::pmt>>({
+    auto& sink = fg.emplaceBlock<gr::zeromq::ZmqPushSink<gr::pmt::Value>>({
         {"endpoint", "tcp://localhost:5556"},
         {"timeout", 100},
         {"bind", true},

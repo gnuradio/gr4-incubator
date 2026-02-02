@@ -5,7 +5,6 @@ inc_dirs = []
 #     '../blocks/zeromq/include',
 # ]
 
-pmt_conv_dep = dependency('pmt_converter', required: true)
 zmq_dep = dependency('cppzmq', required: true)
 rtaudio_dep = dependency('rtaudio', required: true)
 
@@ -18,7 +17,6 @@ deps = [
   gr4_basic_blocks_dep,
   gr4_zmq_blocks_dep,
   gr4_soapysdr_blocks_dep,
-  pmt_conv_dep,
   zmq_dep,
   cli11_dep,
   rtaudio_dep,

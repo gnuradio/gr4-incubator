@@ -1,8 +1,7 @@
-# tests = [
-#   ['qa_ZmqPushPull', ['qa_ZmqPushPull.cpp'], [gr4_zmq_blocks_dep]]
-# ]
-
-tests = []
+tests = [
+  # disable ZmqPushPull test for now
+  # ['qa_ZmqPushPull', ['qa_ZmqPushPull.cpp'], [gr4_zmq_blocks_dep]],
+]
 
 common_deps = [gr4_dep, ut_dep]
 
@@ -25,6 +24,7 @@ foreach test_info : tests
   test(
     test_name,
     exe,
-    env: ['GNURADIO4_PLUGIN_DIRECTORIES=' + meson.current_build_dir() + '/plugins']
+    env: ['GNURADIO4_PLUGIN_DIRECTORIES=' + meson.current_build_dir() + '/plugins'],
+    is_parallel: false
   )
 endforeach

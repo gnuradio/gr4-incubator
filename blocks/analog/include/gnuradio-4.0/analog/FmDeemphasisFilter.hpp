@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <memory_resource>
 #include <utility>
 #include <vector>
 
@@ -45,9 +46,12 @@ private:
 
     void updateFilter() {
         auto [b, a] = computeTaps();
-        _iir.b = std::move(b);
-        _iir.a = std::move(a);
-        property_map new_settings{{"b", _iir.b}, {"a", _iir.a}};
+        _iir.b = Tensor<T>(gr::data_from, b);
+        _iir.a = Tensor<T>(gr::data_from, a);
+        property_map new_settings{
+            {std::pmr::string("b"), gr::pmt::Value(_iir.b)},
+            {std::pmr::string("a"), gr::pmt::Value(_iir.a)},
+        };
         _iir.settingsChanged({}, new_settings);
     }
 

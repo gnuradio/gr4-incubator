@@ -13,7 +13,14 @@ RUN apt-get update -q  && apt-get install --no-install-recommends -qy wget gpg c
     libasound2-dev \
     libpulse-dev \
     libjack-jackd2-dev jackd2 \
-    pulseaudio-utils alsa-utils libasound2-plugins \
+    pulseaudio-utils alsa-utils libasound2-plugins libncurses-dev \
+    libopengl-dev libimgui-dev libglfw3-dev \
+    libcurl4-openssl-dev \
+    libxrandr-dev \
+    libxinerama-dev \
+    libxcursor-dev \
+    libxi-dev \
+    libx11-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # UHD: download only B200 images and install udev rules
@@ -37,16 +44,15 @@ RUN dpkg-reconfigure --frontend=noninteractive locales && update-locale LANG=en_
 #     && update-alternatives --set cc /usr/bin/clang-20 \
 #     && update-alternatives --set c++ /usr/bin/clang++-20
 
-# # Clone and build PMTV
-# RUN apt-get install --no-install-recommends -qy meson python3-dev pybind11-dev
-# WORKDIR /opt
-# RUN git clone https://github.com/gnuradio/pmt.git
-# WORKDIR /opt/pmt
-# RUN meson setup build -Denable_python=false -Denable_testing=false  && cd build && ninja && ninja install
 
 # Clone and build GNURADIO4
 WORKDIR /opt
-RUN git clone https://github.com/gnuradio/gnuradio4.git
+# RUN git clone https://github.com/gnuradio/gnuradio4.git
+RUN git clone https://github.com/fair-acc/gnuradio4.git \
+ && cd gnuradio4 \
+ && git fetch --depth 1 origin 0ab05dcd149c95743c4a8d7b7a44dd8518c0137d \
+ && git checkout FETCH_HEAD
+
 WORKDIR /opt/gnuradio4
 RUN mkdir build && cd build && \
     #cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithAssert -DGR_ENABLE_BLOCK_REGISTRY=OFF -DENABLE_TESTING=OFF -DENABLE_EXAMPLES=OFF .. && \

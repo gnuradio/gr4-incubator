@@ -26,10 +26,11 @@ cli11_dep = dependency('CLI11')
 
 # fmt_dep = dependency('fmt', fallback: ['fmt', 'fmt_dep'])
 # pmt_dep = dependency('pmt', fallback: ['pmt', 'pmt_dep'])
-pmt_conv_dep = dependency('pmt_converter')
+# pmt_conv_dep = dependency('pmt_converter')
 
 # dependency('fmt', fallback: ['fmt', 'fmt_dep'])
 
+subdir('algorithm')
 subdir('blocks')
 if get_option('enable_examples')
 subdir('examples')
