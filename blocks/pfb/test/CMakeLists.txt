@@ -1,0 +1,2 @@
+gr4_incubator_add_ut_test(qa_PfbArbResampler qa_PfbArbResampler.cpp)
+target_link_libraries(qa_PfbArbResampler PRIVATE gr4_incubator::blocks_pfb_headers)

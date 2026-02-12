@@ -1,0 +1,2 @@
+gr4_incubator_add_ut_test(qa_QuadratureDemod qa_QuadratureDemod.cpp)
+target_link_libraries(qa_QuadratureDemod PRIVATE gr4_incubator::blocks_analog_headers)

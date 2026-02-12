@@ -21,7 +21,24 @@ RUN apt-get update -q  && apt-get install --no-install-recommends -qy wget gpg c
     libxcursor-dev \
     libxi-dev \
     libx11-dev \
+    librtaudio-dev \
+    libcli11-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Install ImPlot (Ubuntu does not package it yet).
+# Build it against the system imgui package and install to /usr/local.
+ARG IMPLOT_REF=v0.16
+RUN git clone --depth 1 --branch ${IMPLOT_REF} https://github.com/epezent/implot.git /tmp/implot \
+    && cd /tmp/implot \
+    && IMGUI_CFLAGS="$(pkg-config --cflags imgui 2>/dev/null || true)" \
+    && IMGUI_LIBS="$(pkg-config --libs imgui 2>/dev/null || echo -limgui)" \
+    && c++ ${IMGUI_CFLAGS} -O2 -fPIC -c implot.cpp -o implot.o \
+    && c++ ${IMGUI_CFLAGS} -O2 -fPIC -c implot_items.cpp -o implot_items.o \
+    && c++ -shared -o libimplot.so implot.o implot_items.o ${IMGUI_LIBS} \
+    && install -m 0755 libimplot.so /usr/local/lib/libimplot.so \
+    && install -m 0644 implot.h implot_internal.h /usr/local/include/ \
+    && ldconfig \
+    && rm -rf /tmp/implot
 
 # UHD: download only B200 images and install udev rules
 ENV UHD_IMAGES_DIR=/usr/share/uhd/images
