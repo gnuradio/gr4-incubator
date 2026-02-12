@@ -1,0 +1,5 @@
+gr4_incubator_add_ut_test(qa_Copy qa_Copy.cpp)
+target_link_libraries(qa_Copy PRIVATE gr4_incubator::blocks_basic_headers)
+
+gr4_incubator_add_ut_test(qa_Converters qa_Converters.cpp)
+target_link_libraries(qa_Converters PRIVATE gr4_incubator::blocks_basic_headers)
