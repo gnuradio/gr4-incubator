@@ -1,6 +1,7 @@
 #include <complex>
 #include <cstdint>
 #include <cstdlib>
+#include <memory_resource>
 
 #include <gnuradio-4.0/Graph.hpp>
 #include <gnuradio-4.0/Scheduler.hpp>
@@ -23,6 +24,22 @@
 
 using namespace gr;
 using namespace gr::basic;
+
+namespace {
+gr::property_map make_props(std::initializer_list<std::pair<std::string_view, gr::pmt::Value>> init) {
+    gr::property_map out;
+    auto*            mr = out.get_allocator().resource();
+    for (const auto& [key, value] : init) {
+        out.emplace(gr::pmt::Value::Map::value_type{std::pmr::string(key.data(), key.size(), mr), value});
+    }
+    return out;
+}
+
+void set_prop(gr::property_map& map, std::string_view key, gr::pmt::Value value) {
+    auto* mr = map.get_allocator().resource();
+    map[std::pmr::string(key.data(), key.size(), mr)] = std::move(value);
+}
+} // namespace
 
 int main(int argc, char** argv) {
     CLI::App app{"Audio File Source example through ZMQ "};
@@ -80,44 +97,43 @@ int main(int argc, char** argv) {
     double fm_demod_gain = quad_rate / (2 * M_PI * max_dev);
 
 
-    auto& quad_demod = fg.emplaceBlock<gr::analog::QuadratureDemod<TR>>({
-        {"gain", fm_demod_gain},
-    });
+    auto& quad_demod = fg.emplaceBlock<gr::analog::QuadratureDemod<TR>>(
+        make_props({{"gain", gr::pmt::Value(fm_demod_gain)}}));
 
 
-    auto& deemph_filter = fg.emplaceBlock<gr::analog::FmDeemphasisFilter<TR>>({
-        {"sample_rate", static_cast<float>(quad_rate)},
-        {"tau", 75e-6f},
-    });
+    auto& deemph_filter = fg.emplaceBlock<gr::analog::FmDeemphasisFilter<TR>>(
+        make_props({{"sample_rate", gr::pmt::Value(static_cast<float>(quad_rate))}, {"tau", gr::pmt::Value(75e-6f)}}));
 
 
     double stop_band_attenuation = 80.0;
     double rate = 32e3 / quad_rate;
     size_t num_filters = 32;
 
-    gr::property_map resamp_props{
-        {"rate", rate },
-        {"taps", gr::pfb::create_taps<TR>(rate, num_filters, stop_band_attenuation)},
-        {"num_filters", num_filters},
-        {"stop_band_attenuation", stop_band_attenuation},
-    };
+    auto taps_vec = gr::pfb::create_taps<TR>(rate, num_filters, stop_band_attenuation);
+    auto taps_val = gr::pmt::Value(gr::Tensor<TR>(gr::data_from, taps_vec));
+    gr::property_map resamp_props = make_props({
+        {"rate", gr::pmt::Value(rate)},
+        {"taps", std::move(taps_val)},
+        {"num_filters", gr::pmt::Value(num_filters)},
+        {"stop_band_attenuation", gr::pmt::Value(stop_band_attenuation)},
+    });
 
     auto& resampler = fg.emplaceBlock<gr::pfb::PfbArbResampler<TR>>(resamp_props);
 
 
-    gr::property_map audio_props{
-        {"sample_rate", 32000},
-        {"channels_fallback", 1},
-        {"device_index", -1}
-    };
+    gr::property_map audio_props = make_props({
+        {"sample_rate", gr::pmt::Value(32000)},
+        {"channels_fallback", gr::pmt::Value(1)},
+        {"device_index", gr::pmt::Value(-1)},
+    });
     if (audio_frames_per_buf > 0) {
-        audio_props["frames_per_buf"] = static_cast<uint32_t>(audio_frames_per_buf);
+        set_prop(audio_props, "frames_per_buf", gr::pmt::Value(static_cast<uint32_t>(audio_frames_per_buf)));
     }
     if (audio_latency_s > 0.0) {
-        audio_props["target_latency_s"] = audio_latency_s;
+        set_prop(audio_props, "target_latency_s", gr::pmt::Value(audio_latency_s));
     }
     if (audio_ignore_tag_sample_rate) {
-        audio_props["ignore_tag_sample_rate"] = true;
+        set_prop(audio_props, "ignore_tag_sample_rate", gr::pmt::Value(true));
     }
     auto& audio_sink = fg.emplaceBlock<gr::audio::RtAudioSink<TR>>(audio_props);
 
@@ -127,34 +143,34 @@ int main(int argc, char** argv) {
         if (filename.empty()) {
             throw std::runtime_error("source=file requires --file");
         }
-        auto& source = fg.emplaceBlock<gr::blocks::fileio::BasicFileSource<T>>({
-            {"file_name", filename},
-            {"repeat", repeat_file},
-            {"disconnect_on_done", true},
-        });
+        auto& source = fg.emplaceBlock<gr::blocks::fileio::BasicFileSource<T>>(make_props({
+            {"file_name", gr::pmt::Value(filename)},
+            {"repeat", gr::pmt::Value(repeat_file)},
+            {"disconnect_on_done", gr::pmt::Value(true)},
+        }));
         if (fg.connect<"out">(source).to<"in">(quad_demod) != gr::ConnectionResult::SUCCESS) {
             throw gr::exception(connection_error);
         }
     } else if (source_type == "zmq") {
-        auto& source = fg.emplaceBlock<gr::zeromq::ZmqPullSource<T>>({
-            {"endpoint", zmq_endpoint},
-            {"timeout", zmq_timeout},
-            {"bind", zmq_bind},
-        });
+        auto& source = fg.emplaceBlock<gr::zeromq::ZmqPullSource<T>>(make_props({
+            {"endpoint", gr::pmt::Value(zmq_endpoint)},
+            {"timeout", gr::pmt::Value(zmq_timeout)},
+            {"bind", gr::pmt::Value(zmq_bind)},
+        }));
         if (fg.connect<"out">(source).to<"in">(quad_demod) != gr::ConnectionResult::SUCCESS) {
             throw gr::exception(connection_error);
         }
     } else if (source_type == "soapy") {
-        auto& source = fg.emplaceBlock<gr::soapysdr::SoapyRx<T>>({
-            {"device", soapy_driver},
-            {"device_args", soapy_args},
-            {"sample_rate", static_cast<float>(quad_rate)},
-            {"channel", static_cast<gr::Size_t>(soapy_channel)},
-            {"center_frequency", soapy_freq},
-            {"bandwidth", soapy_bw},
-            {"gain", soapy_gain},
-            {"antenna", soapy_antenna},
-        });
+        auto& source = fg.emplaceBlock<gr::soapysdr::SoapyRx<T>>(make_props({
+            {"device", gr::pmt::Value(soapy_driver)},
+            {"device_args", gr::pmt::Value(soapy_args)},
+            {"sample_rate", gr::pmt::Value(static_cast<float>(quad_rate))},
+            {"channel", gr::pmt::Value(static_cast<gr::Size_t>(soapy_channel))},
+            {"center_frequency", gr::pmt::Value(soapy_freq)},
+            {"bandwidth", gr::pmt::Value(soapy_bw)},
+            {"gain", gr::pmt::Value(soapy_gain)},
+            {"antenna", gr::pmt::Value(soapy_antenna)},
+        }));
         if (fg.connect<"out">(source).to<"in">(quad_demod) != gr::ConnectionResult::SUCCESS) {
             throw gr::exception(connection_error);
         }

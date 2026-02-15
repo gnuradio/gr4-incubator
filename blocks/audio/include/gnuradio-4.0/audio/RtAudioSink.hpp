@@ -7,6 +7,7 @@
 #include <vector>
 #include <format>
 #include <algorithm>
+#include <memory_resource>
 
 #include <RtAudio.h>
 
@@ -213,38 +214,37 @@ private:
     static std::optional<uint32_t>
     get_uint_(const property_map& pm, const std::string& key)
     {
-        auto it = pm.find(key);
+        auto it = pm.find(std::pmr::string(key, pm.get_allocator().resource()));
         if (it == pm.end()) return std::nullopt;
 
-        const auto& v = it->second; // rva::variant<...>
+        const auto& v = it->second;
 
-        std::optional<uint32_t> out;
-        std::visit([&](const auto& x) {
-            using X = std::decay_t<decltype(x)>;
+        if (const auto* u = v.get_if<uint32_t>()) return *u;
+        if (const auto* u = v.get_if<uint64_t>()) return static_cast<uint32_t>(*u);
+        if (const auto* u = v.get_if<uint16_t>()) return static_cast<uint32_t>(*u);
+        if (const auto* u = v.get_if<uint8_t>()) return static_cast<uint32_t>(*u);
 
-            if constexpr (std::is_same_v<X, std::monostate> || std::is_same_v<X, bool>) {
-                // ignore
-            } else if constexpr (std::is_integral_v<X>) {
-                if constexpr (std::is_signed_v<X>)
-                    out = x >= 0 ? static_cast<uint32_t>(x) : 0u;
-                else
-                    out = static_cast<uint32_t>(x);
-            } else if constexpr (std::is_floating_point_v<X>) {
-                out = x > 0 ? static_cast<uint32_t>(x) : 0u;
-            } else if constexpr (std::is_same_v<X, std::string>) {
-                try {
-                    // allow decimal strings; clamp to u32 range if desired
-                    unsigned long tmp = std::stoul(x);
-                    out = static_cast<uint32_t>(tmp);
-                } catch (...) {
-                    // leave out = std::nullopt
+        if (const auto* i = v.get_if<int64_t>()) return *i >= 0 ? static_cast<uint32_t>(*i) : 0u;
+        if (const auto* i = v.get_if<int32_t>()) return *i >= 0 ? static_cast<uint32_t>(*i) : 0u;
+        if (const auto* i = v.get_if<int16_t>()) return *i >= 0 ? static_cast<uint32_t>(*i) : 0u;
+        if (const auto* i = v.get_if<int8_t>()) return *i >= 0 ? static_cast<uint32_t>(*i) : 0u;
+
+        if (const auto* f = v.get_if<float>()) return *f > 0 ? static_cast<uint32_t>(*f) : 0u;
+        if (const auto* d = v.get_if<double>()) return *d > 0 ? static_cast<uint32_t>(*d) : 0u;
+
+        if (v.is_string()) {
+            try {
+                std::string_view sv = v.value_or(std::string_view{});
+                if (!sv.empty()) {
+                    unsigned long tmp = std::stoul(std::string(sv));
+                    return static_cast<uint32_t>(tmp);
                 }
-            } else {
-                // other variant members (vectors, tensors, maps, etc.) -> ignore
+            } catch (...) {
+                return std::nullopt;
             }
-        }, v);
+        }
 
-        return out;
+        return std::nullopt;
     }
 
     // forwarding overload if some code still passes a reference_wrapper:

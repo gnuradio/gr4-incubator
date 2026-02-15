@@ -3,7 +3,7 @@
   // "build": {
   //   "dockerfile": "../docker/Dockerfile"
   // },
-  "image": "ghcr.io/mormj/gr4-oot-env:latest",
+  "image": "ghcr.io/mormj/gr4-oot-env:fair",
   
   // Give the container access to network + audio
   "runArgs": [

@@ -5,13 +5,13 @@
 #include <gnuradio-4.0/meta/reflection.hpp>
 #include "trait_helpers.hpp"
 #include <zmq.hpp>
-#include <pmt_converter/pmt_legacy_codec.h>
+#include <gnuradio-4.0/algorithm/pmt_converter/pmt_legacy_codec.h>
 
 
 namespace gr::zeromq {
 
 template<typename T>
-concept ZmqPullSourceAcceptableTypes = std::is_same_v<T, std::vector<typename T::value_type, typename T::allocator_type>> || std::is_same_v<T, std::complex<typename T::value_type>> || std::is_integral<T>::value || std::is_floating_point<T>::value || std::is_same<T, pmtv::pmt>::value;
+concept ZmqPullSourceAcceptableTypes = std::is_same_v<T, std::vector<typename T::value_type, typename T::allocator_type>> || std::is_same_v<T, std::complex<typename T::value_type>> || std::is_integral<T>::value || std::is_floating_point<T>::value || std::is_same_v<T, gr::pmt::Value>;
 
 template<ZmqPullSourceAcceptableTypes T>
 
@@ -121,6 +121,20 @@ public:
                     break;
                 }
             }
+        } else if constexpr (std::is_same_v<T, gr::pmt::Value>) {
+            for (std::size_t i = 0; i < nProcessOut; ++i) {
+                zmq::pollitem_t items[] = {{static_cast<void*>(_socket), 0, ZMQ_POLLIN, 0}};
+                zmq::poll(&items[0], 1, std::chrono::milliseconds{timeout});
+
+                if (items[0].revents & ZMQ_POLLIN) {
+                    zmq::message_t msg;
+                    [[maybe_unused]] const bool ok = bool(_socket.recv(msg));
+                    outputSpan[i] = legacy_pmt::deserialize_from_legacy(static_cast<const uint8_t*>(msg.data()), msg.size());
+                    npublished++;
+                } else {
+                    break;
+                }
+            }
         }
 
         outputSpan.publish(npublished);
@@ -131,4 +145,4 @@ public:
 
 } // namespace gr::zeromq
 
-GR_REGISTER_BLOCK("ZmqPullSource", gr::zeromq::ZmqPullSource, ([T]), [ uint8_t, int16_t, int32_t, float, std::complex<float>, std::vector<float>, std::vector<std::complex<float>> ])
+GR_REGISTER_BLOCK("ZmqPullSource", gr::zeromq::ZmqPullSource, ([T]), [ uint8_t, int16_t, int32_t, float, std::complex<float>, std::vector<float>, std::vector<std::complex<float>>, gr::pmt::Value ])

@@ -134,11 +134,14 @@ struct PfbArbResampler : Block<PfbArbResampler<T, TAPS_T>, gr::Resampling<>, gr:
         outSamples.publish(static_cast<std::size_t>(produced));
         if (this->inputTagsPresent()) {
             const auto& tag = this->mergedInputTag();
-            const auto  it  = tag.map.find(gr::tag::SAMPLE_RATE.shortKey());
+            const auto it = tag.map.find(gr::tag::SAMPLE_RATE.shortKey());
             if (it != tag.map.end()) {
-                if (const auto* v = std::get_if<float>(&it->second)) {
+                if (const auto* v = it->second.template get_if<float>()) {
                     const float new_rate = static_cast<float>((*v) * rate);
-                    this->publishTag({{gr::tag::SAMPLE_RATE.shortKey(), new_rate}}, 0UZ);
+                    property_map tag_map;
+                    tag_map.emplace(std::pmr::string(gr::tag::SAMPLE_RATE.shortKey(), std::pmr::get_default_resource()),
+                                    gr::pmt::Value(new_rate));
+                    this->publishTag(tag_map, 0UZ);
                 }
             }
         }

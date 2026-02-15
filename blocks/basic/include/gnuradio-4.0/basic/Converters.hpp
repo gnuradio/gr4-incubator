@@ -2,6 +2,8 @@
 
 #include <gnuradio-4.0/Block.hpp>
 #include <gnuradio-4.0/BlockRegistry.hpp>
+#include <gnuradio-4.0/Value.hpp>
+#include <gnuradio-4.0/Tensor.hpp>
 
 namespace gr::basic {
 
@@ -10,7 +12,7 @@ struct StreamToPmt : gr::Block<StreamToPmt<T>, Resampling<>> {
     using Description = Doc<"@brief Converts a stream of samples to uniform vector PMTs of a specified packet size">;
 
     PortIn<T> in;
-    PortOut<pmtv::pmt> out;
+    PortOut<gr::pmt::Value> out;
 
     gr::Size_t packet_size = 1024;
 
@@ -37,7 +39,8 @@ struct StreamToPmt : gr::Block<StreamToPmt<T>, Resampling<>> {
         for (size_t idx = 0; idx < num_chunks; ++idx) {
             auto start = in.begin() + idx * N;
             std::vector<T> chunk(start, start + N);
-            out[idx] = pmtv::pmt(std::move(chunk));
+            gr::Tensor<T> tensor(gr::data_from, std::move(chunk));
+            out[idx] = gr::pmt::Value(std::move(tensor));
         }
         return gr::work::Status::OK;
     }

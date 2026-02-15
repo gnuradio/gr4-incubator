@@ -12,6 +12,7 @@
 #include <format>
 #include <chrono>
 #include <type_traits>
+#include <memory_resource>
 
 // dr_libs (implementation macros must appear exactly once in a .cpp TU)
 #define DR_WAV_IMPLEMENTATION
@@ -219,15 +220,16 @@ struct AudioFileSource : Block<AudioFileSource<T>> {
         const std::size_t samples_read = (std::size_t)frames_read * _channels;
 
         if (!_emittedStart && !trigger_name.value.empty() && samples_read > 0) {
-            dataOut.publishTag(
-                property_map{
-                    {std::string(tag::TRIGGER_NAME.shortKey()), trigger_name.value},
-                    {std::string(tag::TRIGGER_TIME.shortKey()), settings::convertTimePointToUint64Ns(std::chrono::system_clock::now())},
-                    {"num_channels", _channels},
-                    {"sample_rate", static_cast<float>(_sampleRate)},
-                },
-                0UZ
-            );
+            property_map tag_map;
+            tag_map.emplace(std::pmr::string(tag::TRIGGER_NAME.shortKey(), std::pmr::get_default_resource()),
+                            gr::pmt::Value(std::string_view(trigger_name.value)));
+            tag_map.emplace(std::pmr::string(tag::TRIGGER_TIME.shortKey(), std::pmr::get_default_resource()),
+                            gr::pmt::Value(settings::convertTimePointToUint64Ns(std::chrono::system_clock::now())));
+            tag_map.emplace(std::pmr::string("num_channels", std::pmr::get_default_resource()),
+                            gr::pmt::Value(static_cast<std::uint64_t>(_channels)));
+            tag_map.emplace(std::pmr::string("sample_rate", std::pmr::get_default_resource()),
+                            gr::pmt::Value(static_cast<float>(_sampleRate)));
+            dataOut.publishTag(tag_map, 0UZ);
             _emittedStart = true;
         }
 

@@ -1,5 +1,5 @@
 tests = [
-  ['qaPfbArbResampler', ['qa_PfbArbResampler.cpp'], [gr4_pfb_blocks_dep]],
+  ['qa_PfbArbResampler', ['qa_PfbArbResampler.cpp'], [gr4_pfb_blocks_dep]],
 ]
 
 common_deps = [gr4_dep, ut_dep]
