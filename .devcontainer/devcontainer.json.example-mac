@@ -1,7 +1,8 @@
 {
   "name": "GR4 OOT Dev Container",
   // "build": {
-  //   "dockerfile": "../docker/Dockerfile"
+  //   "dockerfile": "../docker/Dockerfile",
+  //   "target": "dev"
   // },
   "image": "ghcr.io/mormj/gr4-oot-env:arm64",
   
@@ -38,5 +39,5 @@
   }
   // "postCreateCommand": "echo 'Container ready!'",
   // "forwardPorts": [],
-  // "remoteUser": "vscode"
+  // "remoteUser": "ubuntu"
 }
