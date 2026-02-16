@@ -98,5 +98,30 @@ WORKDIR /workspaces/gr4-incubator
 ENTRYPOINT ["/bin/bash", "-l", "-c"]
 
 
+# Build and install this gr4-incubator tree into /usr/local so other repos can
+# use this image as a dependency/toolchain base.
+FROM ci AS gr4-incubator-builder
+USER root
+WORKDIR /opt/gr4-incubator-src
+COPY . .
+RUN cmake -S . -B build -G Ninja \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=/usr/local \
+      -DENABLE_TESTING=OFF \
+      -DENABLE_EXAMPLES=OFF \
+      -DENABLE_GUI_EXAMPLES=OFF \
+      -DENABLE_PLUGINS=OFF \
+    && cmake --build build -j"$(nproc)" \
+    && DESTDIR=/opt/gr4i-install-root cmake --install build
+
+
+FROM ci AS sdk
+USER root
+COPY --from=gr4-incubator-builder /opt/gr4i-install-root/usr/local/ /usr/local/
+RUN ldconfig
+USER ubuntu
+WORKDIR /workspaces
+
+
 FROM ci AS dev
 WORKDIR /code
