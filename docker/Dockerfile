@@ -34,10 +34,9 @@ RUN git clone --depth 1 --branch ${IMPLOT_REF} https://github.com/epezent/implot
     && ldconfig \
     && rm -rf /tmp/implot
 
-# UHD images + udev rules
-ENV UHD_IMAGES_DIR=/usr/share/uhd/images
+# UHD udev rules only. UHD FPGA/firmware images are provided at runtime
+# through UHD_IMAGES_DIR + bind mounts.
 RUN mkdir -p /etc/udev/rules.d/ \
-    && uhd_images_downloader --refetch \
     && cp /usr/libexec/uhd/utils/uhd-usrp.rules /etc/udev/rules.d/
 
 RUN locale-gen en_US.UTF-8 \
