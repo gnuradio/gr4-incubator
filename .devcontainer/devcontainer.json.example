@@ -1,7 +1,8 @@
 {
   "name": "GR4 OOT Dev Container",
   // "build": {
-  //   "dockerfile": "../docker/Dockerfile"
+  //   "dockerfile": "../docker/Dockerfile",
+  //   "target": "dev"
   // },
   "image": "ghcr.io/mormj/gr4-oot-env:fair",
   
@@ -17,7 +18,7 @@
   // Mount Pulse/PipeWire socket + cookie so Pulse audio works from the container
   "mounts": [
     "source=${localEnv:XDG_RUNTIME_DIR}/pulse/native,target=/tmp/pulse-native,type=bind",
-    "source=${localEnv:HOME}/.config/pulse/cookie,target=/home/vscode/.config/pulse/cookie,type=bind,consistency=cached,readonly"
+    "source=${localEnv:HOME}/.config/pulse/cookie,target=/home/ubuntu/.config/pulse/cookie,type=bind,consistency=cached,readonly"
   ],
   "containerEnv": {
     "PULSE_SERVER": "unix:/tmp/pulse-native"
@@ -38,5 +39,5 @@
   }
   // "postCreateCommand": "echo 'Container ready!'",
   // "forwardPorts": [],
-  // "remoteUser": "vscode"
+  // "remoteUser": "ubuntu"
 }
