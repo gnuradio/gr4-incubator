@@ -14,6 +14,14 @@ target_link_libraries(gr4_incubator_blocks_zeromq_headers INTERFACE
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/zeromq
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/gnuradio-4.0)
 
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/gnuradio4-zeromq-headers.pc.in
+  ${CMAKE_CURRENT_BINARY_DIR}/gnuradio4-zeromq-headers.pc
+  @ONLY)
+install(
+  FILES ${CMAKE_CURRENT_BINARY_DIR}/gnuradio4-zeromq-headers.pc
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+
 if(ENABLE_EXAMPLES)
   add_subdirectory(examples)
 endif()

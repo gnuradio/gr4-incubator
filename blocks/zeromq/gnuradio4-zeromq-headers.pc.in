@@ -1,0 +1,11 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: gnuradio4-zeromq-headers
+Description: GNU Radio 4 incubator ZeroMQ block headers
+Version: @PROJECT_VERSION@
+Requires: gnuradio4 cppzmq
+Cflags: -I${includedir}
+Libs: -L${libdir} -lpmt_converter
