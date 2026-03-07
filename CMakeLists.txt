@@ -26,6 +26,15 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules")
 include(cmake/Dependencies.cmake)
 gr4_incubator_resolve_dependencies()
 
+# Mirror GNURadio4 stdfloat fallback behavior for toolchains that expose
+# <stdfloat> but do not provide std::float32_t/std::float64_t.
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  add_compile_options(
+    "$<$<COMPILE_LANGUAGE:CXX>:-include>"
+    "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/cmake/gr4_incubator_stdfloat_compat.hpp>"
+  )
+endif()
+
 if(ENABLE_TESTING)
   include(CTest)
   enable_testing()
