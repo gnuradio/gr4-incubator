@@ -10,6 +10,16 @@ target_link_libraries(gr4_incubator_blocks_analog_headers INTERFACE ${GR4I_GNURA
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/analog
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/gnuradio-4.0)
 
+if(ENABLE_PLUGINS)
+  file(GLOB GR4I_ANALOG_HEADERS CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/analog/*.hpp")
+  gr4_incubator_add_block_plugin(Gr4AnalogBlocks
+    MODULE_NAME_BASE analog
+    SPLIT_BLOCK_INSTANTIATIONS
+    HEADERS ${GR4I_ANALOG_HEADERS}
+    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/include")
+endif()
+
 if(ENABLE_TESTING)
   add_subdirectory(test)
 endif()
