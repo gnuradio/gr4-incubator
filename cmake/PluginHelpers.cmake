@@ -37,6 +37,8 @@ function(gr4_incubator_add_block_plugin plugin_target_base)
   endif()
 
   set(_gen_dir "${CMAKE_BINARY_DIR}/generated_plugins/${GR4I_PLUGIN_MODULE_NAME_BASE}")
+  # Keep generated sources in sync when headers are removed/renamed.
+  file(REMOVE_RECURSE "${_gen_dir}")
   file(MAKE_DIRECTORY "${_gen_dir}")
 
   set(_generated_cpp "${_gen_dir}/integrator.cpp")

@@ -15,7 +15,7 @@
 
 #include <gnuradio-4.0/pfb/PfbRemez.hpp>
 
-namespace gr::pfb::optfir {
+namespace gr::incubator::pfb::optfir {
 
 inline double stopband_atten_to_dev(double atten_db) { return std::pow(10.0, -atten_db / 20.0); }
 
@@ -159,4 +159,4 @@ inline std::vector<double> low_pass(double gain,
     return pm_remez(n + nextra_taps, fo, ao, w, "bandpass", 16);
 }
 
-} // namespace gr::pfb::optfir
+} // namespace gr::incubator::pfb::optfir

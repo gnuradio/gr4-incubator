@@ -4,7 +4,7 @@
 #include <gnuradio-4.0/Value.hpp>
 #include <gnuradio-4.0/Tensor.hpp>
 
-using namespace gr::basic;
+using namespace gr::incubator::basic;
 using namespace boost::ut;
 
 const suite StreamToPmtTests = [] {

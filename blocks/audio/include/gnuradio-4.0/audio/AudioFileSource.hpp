@@ -27,7 +27,7 @@
 #include <gnuradio-4.0/BlockRegistry.hpp>
 
 
-namespace gr::audio {
+namespace gr::incubator::audio {
 
 // ---------- Small runtime reader abstraction ----------
 struct PCMReader {
@@ -267,4 +267,6 @@ private:
 };
 
 
-} // namespace gr::audio
+} // namespace gr::incubator::audio
+
+GR_REGISTER_BLOCK("gr::incubator::audio::AudioFileSource", gr::incubator::audio::AudioFileSource, ([T]), [ float ])

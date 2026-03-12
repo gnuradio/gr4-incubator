@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace gr::pfb::window {
+namespace gr::incubator::pfb::window {
 
 constexpr float kPi = 3.14159265358979323846f;
 
@@ -68,4 +68,4 @@ inline std::vector<float> build(win_type type, int ntaps)
     }
 }
 
-} // namespace gr::pfb::window
+} // namespace gr::incubator::pfb::window

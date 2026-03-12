@@ -36,7 +36,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace gr::pfb {
+namespace gr::incubator::pfb {
 
 // helper types
 enum class filter_type { BANDPASS = 1, DIFFERENTIATOR = 2, HILBERT = 3 };
@@ -807,4 +807,4 @@ inline std::vector<double> pm_remez(int order,
     return std::vector<double>(&coeff[0], &coeff[numtaps]);
 }
 
-} // namespace gr::pfb
+} // namespace gr::incubator::pfb

@@ -23,7 +23,7 @@
 #include <print>
 
 using namespace gr;
-using namespace gr::basic;
+using namespace gr::incubator::basic;
 
 namespace {
 gr::property_map make_props(std::initializer_list<std::pair<std::string_view, gr::pmt::Value>> init) {
@@ -97,11 +97,11 @@ int main(int argc, char** argv) {
     double fm_demod_gain = quad_rate / (2 * M_PI * max_dev);
 
 
-    auto& quad_demod = fg.emplaceBlock<gr::analog::QuadratureDemod<TR>>(
+    auto& quad_demod = fg.emplaceBlock<gr::incubator::analog::QuadratureDemod<TR>>(
         make_props({{"gain", gr::pmt::Value(fm_demod_gain)}}));
 
 
-    auto& deemph_filter = fg.emplaceBlock<gr::analog::FmDeemphasisFilter<TR>>(
+    auto& deemph_filter = fg.emplaceBlock<gr::incubator::analog::FmDeemphasisFilter<TR>>(
         make_props({{"sample_rate", gr::pmt::Value(static_cast<float>(quad_rate))}, {"tau", gr::pmt::Value(75e-6f)}}));
 
 
@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
     double rate = 32e3 / quad_rate;
     size_t num_filters = 32;
 
-    auto taps_vec = gr::pfb::create_taps<TR>(rate, num_filters, stop_band_attenuation);
+    auto taps_vec = gr::incubator::pfb::create_taps<TR>(rate, num_filters, stop_band_attenuation);
     auto taps_val = gr::pmt::Value(gr::Tensor<TR>(gr::data_from, taps_vec));
     gr::property_map resamp_props = make_props({
         {"rate", gr::pmt::Value(rate)},
@@ -118,7 +118,7 @@ int main(int argc, char** argv) {
         {"stop_band_attenuation", gr::pmt::Value(stop_band_attenuation)},
     });
 
-    auto& resampler = fg.emplaceBlock<gr::pfb::PfbArbResampler<TR>>(resamp_props);
+    auto& resampler = fg.emplaceBlock<gr::incubator::pfb::PfbArbResampler<TR>>(resamp_props);
 
 
     gr::property_map audio_props = make_props({
@@ -135,7 +135,7 @@ int main(int argc, char** argv) {
     if (audio_ignore_tag_sample_rate) {
         set_prop(audio_props, "ignore_tag_sample_rate", gr::pmt::Value(true));
     }
-    auto& audio_sink = fg.emplaceBlock<gr::audio::RtAudioSink<TR>>(audio_props);
+    auto& audio_sink = fg.emplaceBlock<gr::incubator::audio::RtAudioSink<TR>>(audio_props);
 
     const char* connection_error = "connection_error";
 
@@ -152,7 +152,7 @@ int main(int argc, char** argv) {
             throw gr::exception(connection_error);
         }
     } else if (source_type == "zmq") {
-        auto& source = fg.emplaceBlock<gr::zeromq::ZmqPullSource<T>>(make_props({
+        auto& source = fg.emplaceBlock<gr::incubator::zeromq::ZmqPullSource<T>>(make_props({
             {"endpoint", gr::pmt::Value(zmq_endpoint)},
             {"timeout", gr::pmt::Value(zmq_timeout)},
             {"bind", gr::pmt::Value(zmq_bind)},
@@ -161,7 +161,7 @@ int main(int argc, char** argv) {
             throw gr::exception(connection_error);
         }
     } else if (source_type == "soapy") {
-        auto& source = fg.emplaceBlock<gr::soapysdr::SoapyRx<T>>(make_props({
+        auto& source = fg.emplaceBlock<gr::incubator::soapysdr::SoapyRx<T>>(make_props({
             {"device", gr::pmt::Value(soapy_driver)},
             {"device_args", gr::pmt::Value(soapy_args)},
             {"sample_rate", gr::pmt::Value(static_cast<float>(quad_rate))},

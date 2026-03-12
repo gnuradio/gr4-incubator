@@ -5,9 +5,9 @@
 #include <gnuradio-4.0/HistoryBuffer.hpp>
 
 
-namespace gr::analog {
+namespace gr::incubator::analog {
 
-GR_REGISTER_BLOCK("Quadrature Demod Block", gr::analog::QuadratureDemod, ([T]), [ uint8_t, int16_t, int32_t ])
+GR_REGISTER_BLOCK("gr::incubator::analog::QuadratureDemod", gr::incubator::analog::QuadratureDemod, ([T]), [ uint8_t, int16_t, int32_t ])
 
 template<typename T>
 struct QuadratureDemod : Block<QuadratureDemod<T>> {
@@ -30,5 +30,5 @@ struct QuadratureDemod : Block<QuadratureDemod<T>> {
     }
 };
 
-} // namespace gr::analog
+} // namespace gr::incubator::analog
 

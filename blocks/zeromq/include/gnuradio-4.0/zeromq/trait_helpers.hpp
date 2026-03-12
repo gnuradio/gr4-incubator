@@ -3,7 +3,7 @@
 #include <complex>
 #include <vector>
 
-namespace gr::zeromq {
+namespace gr::incubator::zeromq {
 
 template <typename T>
 struct is_arithmetic_or_complex

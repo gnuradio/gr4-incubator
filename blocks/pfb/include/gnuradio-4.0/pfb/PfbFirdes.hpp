@@ -13,7 +13,7 @@
 
 #include <gnuradio-4.0/pfb/PfbWindow.hpp>
 
-namespace gr::pfb::firdes {
+namespace gr::incubator::pfb::firdes {
 
 inline void sanity_check_1f(double sampling_freq, double fa, double transition_width)
 {
@@ -72,4 +72,4 @@ inline std::vector<float> low_pass_2(double gain,
     return taps;
 }
 
-} // namespace gr::pfb::firdes
+} // namespace gr::incubator::pfb::firdes

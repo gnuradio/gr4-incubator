@@ -5,9 +5,9 @@
 
 
 
-namespace gr::basic {
+namespace gr::incubator::basic {
 
-GR_REGISTER_BLOCK("Copy Block", gr::basic::Copy, ([T]), [ uint8_t, int16_t, int32_t ])
+GR_REGISTER_BLOCK("gr::incubator::basic::Copy", gr::incubator::basic::Copy, ([T]), [ uint8_t, int16_t, int32_t ])
 
 template<typename T>
 struct Copy : Block<Copy<T>> {
@@ -22,5 +22,5 @@ struct Copy : Block<Copy<T>> {
     [[nodiscard]] constexpr T processOne(T input) const noexcept { return input; }
 };
 
-} // namespace gr::basic
+} // namespace gr::incubator::basic
 

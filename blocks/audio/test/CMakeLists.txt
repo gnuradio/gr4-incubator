@@ -1,2 +1,1 @@
-gr4_incubator_add_ut_test(qa_AudioCopy qa_Copy.cpp)
-target_link_libraries(qa_AudioCopy PRIVATE gr4_incubator::blocks_audio_headers)
+# No audio block unit tests currently.

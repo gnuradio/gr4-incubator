@@ -204,12 +204,12 @@ const suite ZmqPushPullTests = [] {
             {"n_samples_max", gr::pmt::Value(n_samples)},
             {"startup_delay_ms", gr::pmt::Value(static_cast<gr::Size_t>(500))},
         }));
-        auto& push = fg.emplaceBlock<gr::zeromq::ZmqPushSink<T>>(make_props({
+        auto& push = fg.emplaceBlock<gr::incubator::zeromq::ZmqPushSink<T>>(make_props({
             {"endpoint", gr::pmt::Value(endpoint)},
             {"timeout", gr::pmt::Value(10)},
             {"bind", gr::pmt::Value(true)},
         }));
-        auto& pull = fg.emplaceBlock<gr::zeromq::ZmqPullSource<T>>(make_props({
+        auto& pull = fg.emplaceBlock<gr::incubator::zeromq::ZmqPullSource<T>>(make_props({
             {"endpoint", gr::pmt::Value(endpoint)},
             {"timeout", gr::pmt::Value(10)},
             {"bind", gr::pmt::Value(false)},
@@ -238,12 +238,12 @@ const suite ZmqPushPullTests = [] {
             {"payload_len", gr::pmt::Value(static_cast<gr::Size_t>(16))},
             {"startup_delay_ms", gr::pmt::Value(static_cast<gr::Size_t>(500))},
         }));
-        auto& push = fg.emplaceBlock<gr::zeromq::ZmqPushSink<std::vector<T>>>(make_props({
+        auto& push = fg.emplaceBlock<gr::incubator::zeromq::ZmqPushSink<std::vector<T>>>(make_props({
             {"endpoint", gr::pmt::Value(endpoint)},
             {"timeout", gr::pmt::Value(10)},
             {"bind", gr::pmt::Value(true)},
         }));
-        auto& pull = fg.emplaceBlock<gr::zeromq::ZmqPullSource<std::vector<T>>>(make_props({
+        auto& pull = fg.emplaceBlock<gr::incubator::zeromq::ZmqPullSource<std::vector<T>>>(make_props({
             {"endpoint", gr::pmt::Value(endpoint)},
             {"timeout", gr::pmt::Value(10)},
             {"bind", gr::pmt::Value(false)},
@@ -271,12 +271,12 @@ const suite ZmqPushPullTests = [] {
             {"n_samples_max", gr::pmt::Value(n_samples)},
             {"startup_delay_ms", gr::pmt::Value(static_cast<gr::Size_t>(500))},
         }));
-        auto& push = fg.emplaceBlock<gr::zeromq::ZmqPushSink<gr::pmt::Value>>(make_props({
+        auto& push = fg.emplaceBlock<gr::incubator::zeromq::ZmqPushSink<gr::pmt::Value>>(make_props({
             {"endpoint", gr::pmt::Value(endpoint)},
             {"timeout", gr::pmt::Value(10)},
             {"bind", gr::pmt::Value(true)},
         }));
-        auto& pull = fg.emplaceBlock<gr::zeromq::ZmqPullSource<gr::pmt::Value>>(make_props({
+        auto& pull = fg.emplaceBlock<gr::incubator::zeromq::ZmqPullSource<gr::pmt::Value>>(make_props({
             {"endpoint", gr::pmt::Value(endpoint)},
             {"timeout", gr::pmt::Value(10)},
             {"bind", gr::pmt::Value(false)},

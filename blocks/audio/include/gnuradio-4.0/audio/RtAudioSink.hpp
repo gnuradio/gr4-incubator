@@ -16,7 +16,7 @@
 #include <gnuradio-4.0/BlockRegistry.hpp>
 
 
-namespace gr::audio {
+namespace gr::incubator::audio {
 
 template <typename T> struct is_std_pair : std::false_type {};
 template <typename A, typename B> struct is_std_pair<std::pair<A,B>> : std::true_type {};
@@ -318,4 +318,6 @@ private:
     }
 };
 
-} // namespace gr
+} // namespace gr::incubator::audio
+
+GR_REGISTER_BLOCK("gr::incubator::audio::RtAudioSink", gr::incubator::audio::RtAudioSink, ([T]), [ float ])

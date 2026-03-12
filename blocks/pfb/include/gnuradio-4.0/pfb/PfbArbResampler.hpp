@@ -25,9 +25,9 @@
 #include <gnuradio-4.0/pfb/PfbArbResamplerKernel.hpp>
 #include <gnuradio-4.0/pfb/PfbArbResamplerTaps.hpp>
 
-namespace gr::pfb {
+namespace gr::incubator::pfb {
 
-GR_REGISTER_BLOCK("PfbArbResampler", gr::pfb::PfbArbResampler, ([T]), [ float, std::complex<float> ])
+GR_REGISTER_BLOCK("gr::incubator::pfb::PfbArbResampler", gr::incubator::pfb::PfbArbResampler, ([T]), [ float, std::complex<float> ])
 
 template<typename T, typename TAPS_T = T>
 struct PfbArbResampler : Block<PfbArbResampler<T, TAPS_T>, gr::Resampling<>, gr::Stride<>> {
@@ -178,4 +178,4 @@ private:
     }
 };
 
-} // namespace gr::pfb
+} // namespace gr::incubator::pfb

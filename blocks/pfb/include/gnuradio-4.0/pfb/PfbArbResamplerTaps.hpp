@@ -15,7 +15,7 @@
 #include <gnuradio-4.0/pfb/PfbFirdes.hpp>
 #include <gnuradio-4.0/pfb/PfbOptfir.hpp>
 
-namespace gr::pfb {
+namespace gr::incubator::pfb {
 
 template <typename T>
 struct is_complex : std::false_type {};
@@ -90,4 +90,4 @@ std::vector<TAPS_T> create_taps(double rate, std::size_t num_filters, double att
     }
 }
 
-} // namespace gr::pfb
+} // namespace gr::incubator::pfb
