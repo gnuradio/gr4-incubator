@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
 
     gr::Graph fg;
 
-    auto& source = fg.emplaceBlock<gr::soapysdr::SoapyRx<T>>({
+    auto& source = fg.emplaceBlock<gr::incubator::soapysdr::SoapyRx<T>>({
         {"device", driver},
         {"device_args", args},
         {"sample_rate", static_cast<float>(sample_rate)},

@@ -140,17 +140,17 @@ int main(int argc, char** argv) {
 
     Graph fg;
 
-    auto& quad_demod = fg.emplaceBlock<gr::analog::QuadratureDemod<TR>>(
+    auto& quad_demod = fg.emplaceBlock<gr::incubator::analog::QuadratureDemod<TR>>(
         make_props({{"gain", gr::pmt::Value(quad_rate / (2 * M_PI * 75e3))}}));
-    auto& deemph_filter = fg.emplaceBlock<gr::analog::FmDeemphasisFilter<TR>>(
+    auto& deemph_filter = fg.emplaceBlock<gr::incubator::analog::FmDeemphasisFilter<TR>>(
         make_props({{"sample_rate", gr::pmt::Value(static_cast<float>(quad_rate))}, {"tau", gr::pmt::Value(75e-6f)}}));
 
     double stop_band_attenuation = 80.0;
     double rate = 32e3 / quad_rate;
     size_t num_filters = 32;
-    auto taps_vec = gr::pfb::create_taps<TR>(rate, num_filters, stop_band_attenuation);
+    auto taps_vec = gr::incubator::pfb::create_taps<TR>(rate, num_filters, stop_band_attenuation);
     auto taps_val = gr::pmt::Value(gr::Tensor<TR>(gr::data_from, taps_vec));
-    auto& resampler = fg.emplaceBlock<gr::pfb::PfbArbResampler<TR>>(make_props({
+    auto& resampler = fg.emplaceBlock<gr::incubator::pfb::PfbArbResampler<TR>>(make_props({
         {"rate", gr::pmt::Value(rate)},
         {"taps", std::move(taps_val)},
         {"num_filters", gr::pmt::Value(num_filters)},
@@ -163,7 +163,7 @@ int main(int argc, char** argv) {
     auto& volume_block = fg.emplaceBlock<gr::blocks::math::MultiplyConst<TR>>(
         make_props({{"value", gr::pmt::Value(volume)}, {"name", gr::pmt::Value(std::string(kVolumeName))}}));
 
-    auto& audio_sink = fg.emplaceBlock<gr::audio::RtAudioSink<TR>>(make_props({
+    auto& audio_sink = fg.emplaceBlock<gr::incubator::audio::RtAudioSink<TR>>(make_props({
         {"sample_rate", gr::pmt::Value(32000)},
         {"channels_fallback", gr::pmt::Value(1)},
         {"device_index", gr::pmt::Value(-1)},
@@ -184,7 +184,7 @@ int main(int argc, char** argv) {
             throw gr::exception(connection_error);
         }
     } else {
-        auto& source = fg.emplaceBlock<gr::soapysdr::SoapyRx<T>>(make_props({
+        auto& source = fg.emplaceBlock<gr::incubator::soapysdr::SoapyRx<T>>(make_props({
             {"device", gr::pmt::Value(soapy_driver)},
             {"device_args", gr::pmt::Value(soapy_args)},
             {"sample_rate", gr::pmt::Value(static_cast<float>(quad_rate))},

@@ -14,7 +14,7 @@
 #include <gnuradio-4.0/pfb/PfbArbResamplerTaps.hpp>
 
 using namespace boost::ut;
-using gr::pfb::kernel::PfbArbResamplerKernel;
+using gr::incubator::pfb::kernel::PfbArbResamplerKernel;
 
 namespace {
 
@@ -42,7 +42,7 @@ const suite PfbArbResamplerTests = [] {
         const std::size_t nfilts = 32;
         const double atten = 80.0;
 
-        auto taps = gr::pfb::create_taps<float>(rrate, nfilts, atten);
+        auto taps = gr::incubator::pfb::create_taps<float>(rrate, nfilts, atten);
         PfbArbResamplerKernel<std::complex<float>, float> kernel(rrate, taps, nfilts);
 
         auto data = sig_source_c(fs, 211.123, n);
@@ -82,7 +82,7 @@ const suite PfbArbResamplerTests = [] {
         const std::size_t nfilts = 32;
         const double atten = 80.0;
 
-        auto taps = gr::pfb::create_taps<float>(rrate, nfilts, atten);
+        auto taps = gr::incubator::pfb::create_taps<float>(rrate, nfilts, atten);
         PfbArbResamplerKernel<std::complex<float>, float> kernel(rrate, taps, nfilts);
 
         auto data = sig_source_c(fs, 211.123, n);

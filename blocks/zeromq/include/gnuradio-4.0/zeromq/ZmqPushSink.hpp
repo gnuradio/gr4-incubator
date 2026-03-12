@@ -10,7 +10,7 @@
 #include <gnuradio-4.0/algorithm/pmt_converter/pmt_legacy_codec.h>
 #include <zmq.hpp>
 
-namespace gr::zeromq {
+namespace gr::incubator::zeromq {
 
 template<typename T>
 concept ZmqPushSinkAcceptableTypes = std::is_same_v<T, std::vector<typename T::value_type, typename T::allocator_type>> || std::is_same_v<T, std::complex<typename T::value_type>> || std::is_integral<T>::value || std::is_floating_point<T>::value || std::is_same_v<T, gr::pmt::Value>;
@@ -77,6 +77,6 @@ public:
     }
 };
 
-} // namespace gr::zeromq
+} // namespace gr::incubator::zeromq
 
-GR_REGISTER_BLOCK("ZmqPushSink", gr::zeromq::ZmqPushSink, ([T]), [ uint8_t, int16_t, int32_t, float, std::complex<float>, std::vector<float>, std::vector<std::complex<float>>, gr::pmt::Value ])
+GR_REGISTER_BLOCK("gr::incubator::zeromq::ZmqPushSink", gr::incubator::zeromq::ZmqPushSink, ([T]), [ uint8_t, int16_t, int32_t, float, std::complex<float>, std::vector<float>, std::vector<std::complex<float>>, gr::pmt::Value ])

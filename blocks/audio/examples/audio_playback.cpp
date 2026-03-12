@@ -5,7 +5,6 @@
 #include <gnuradio-4.0/Graph.hpp>
 #include <gnuradio-4.0/Scheduler.hpp>
 #include <gnuradio-4.0/PluginLoader.hpp>
-#include <gnuradio-4.0/audio/Copy.hpp>
 #include <gnuradio-4.0/audio/AudioFileSource.hpp>
 #include <gnuradio-4.0/audio/RtAudioSink.hpp>
 #include <gnuradio-4.0/zeromq/ZmqPushSink.hpp>
@@ -17,7 +16,7 @@
 #include <CLI/CLI.hpp> 
 
 using namespace gr;
-using namespace gr::audio;
+using namespace gr::incubator::audio;
 
 int main(int argc, char** argv) {
     CLI::App app{"Audio File Source example through ZMQ "};
@@ -41,13 +40,13 @@ int main(int argc, char** argv) {
         {"repeat", true}
     });
 
-    // auto& sink = fg.emplaceBlock<gr::zeromq::ZmqPushSink<T>>({
+    // auto& sink = fg.emplaceBlock<gr::incubator::zeromq::ZmqPushSink<T>>({
     //     {"endpoint", "tcp://localhost:" + std::to_string(zmq_port)},
     //     {"timeout", 100},
     //     {"bind", true},
     // });
 
-    auto& sink = fg.emplaceBlock<gr::audio::RtAudioSink<T>>({
+    auto& sink = fg.emplaceBlock<gr::incubator::audio::RtAudioSink<T>>({
         // {"channels_fallback", 2},
         // {"sample_rate", 48000}
     });

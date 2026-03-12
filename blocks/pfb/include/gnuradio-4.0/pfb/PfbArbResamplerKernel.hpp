@@ -15,7 +15,7 @@
 #include <type_traits>
 #include <vector>
 
-namespace gr::pfb::kernel {
+namespace gr::incubator::pfb::kernel {
 
 template<typename T, typename TAPS_T = T>
 class PfbArbResamplerKernel {
@@ -215,4 +215,4 @@ private:
     }
 };
 
-} // namespace gr::pfb::kernel
+} // namespace gr::incubator::pfb::kernel

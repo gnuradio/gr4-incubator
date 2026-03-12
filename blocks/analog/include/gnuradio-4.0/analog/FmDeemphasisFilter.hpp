@@ -9,9 +9,9 @@
 #include <gnuradio-4.0/BlockRegistry.hpp>
 #include <gnuradio-4.0/filter/time_domain_filter.hpp>
 
-namespace gr::analog {
+namespace gr::incubator::analog {
 
-GR_REGISTER_BLOCK("FM Deemphasis Filter", gr::analog::FmDeemphasisFilter, ([T]), [ float, double ])
+GR_REGISTER_BLOCK("gr::incubator::analog::FmDeemphasisFilter", gr::incubator::analog::FmDeemphasisFilter, ([T]), [ float, double ])
 
 template<typename T>
 requires std::floating_point<T>
@@ -71,4 +71,4 @@ private:
     }
 };
 
-} // namespace gr::analog
+} // namespace gr::incubator::analog

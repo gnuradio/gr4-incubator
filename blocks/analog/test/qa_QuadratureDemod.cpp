@@ -3,7 +3,7 @@
 #include <cmath>
 
 #include <gnuradio-4.0/analog/QuadratureDemod.hpp>
-using namespace gr::analog;
+using namespace gr::incubator::analog;
 using namespace boost::ut;
 
 const suite QuadratureDemodTests = [] {

@@ -165,7 +165,7 @@ int main(int argc, char** argv) {
     double max_dev = 75e3;
     double fm_demod_gain = quad_rate / (2 * M_PI * max_dev);
 
-    auto& soapy_rx = fg.emplaceBlock<gr::soapysdr::SoapyRx<T>>(make_props({
+    auto& soapy_rx = fg.emplaceBlock<gr::incubator::soapysdr::SoapyRx<T>>(make_props({
         {"name", gr::pmt::Value(std::string("soapy_rx"))},
         {"device", gr::pmt::Value(soapy_driver)},
         {"device_args", gr::pmt::Value(soapy_args)},
@@ -177,19 +177,19 @@ int main(int argc, char** argv) {
         {"antenna", gr::pmt::Value(soapy_antenna)},
     }));
 
-    auto& quad_demod = fg.emplaceBlock<gr::analog::QuadratureDemod<TR>>(
+    auto& quad_demod = fg.emplaceBlock<gr::incubator::analog::QuadratureDemod<TR>>(
         make_props({{"gain", gr::pmt::Value(fm_demod_gain)}}));
 
-    auto& deemph_filter = fg.emplaceBlock<gr::analog::FmDeemphasisFilter<TR>>(
+    auto& deemph_filter = fg.emplaceBlock<gr::incubator::analog::FmDeemphasisFilter<TR>>(
         make_props({{"sample_rate", gr::pmt::Value(static_cast<float>(quad_rate))}, {"tau", gr::pmt::Value(75e-6f)}}));
 
     double stop_band_attenuation = 80.0;
     double rate = audio_rate / quad_rate;
     std::size_t num_filters = 32;
 
-    auto taps_vec = gr::pfb::create_taps<TR>(rate, num_filters, stop_band_attenuation);
+    auto taps_vec = gr::incubator::pfb::create_taps<TR>(rate, num_filters, stop_band_attenuation);
     auto taps_val = gr::pmt::Value(gr::Tensor<TR>(gr::data_from, taps_vec));
-    auto& resampler = fg.emplaceBlock<gr::pfb::PfbArbResampler<TR>>(make_props({
+    auto& resampler = fg.emplaceBlock<gr::incubator::pfb::PfbArbResampler<TR>>(make_props({
         {"rate", gr::pmt::Value(rate)},
         {"taps", std::move(taps_val)},
         {"num_filters", gr::pmt::Value(num_filters)},
@@ -201,7 +201,7 @@ int main(int argc, char** argv) {
         {"value", gr::pmt::Value(static_cast<TR>(volume))},
     }));
 
-    auto& audio_sink = fg.emplaceBlock<gr::audio::RtAudioSink<TR>>(make_props({
+    auto& audio_sink = fg.emplaceBlock<gr::incubator::audio::RtAudioSink<TR>>(make_props({
         {"sample_rate", gr::pmt::Value(static_cast<float>(audio_rate))},
         {"channels_fallback", gr::pmt::Value(1)},
         {"device_index", gr::pmt::Value(-1)},

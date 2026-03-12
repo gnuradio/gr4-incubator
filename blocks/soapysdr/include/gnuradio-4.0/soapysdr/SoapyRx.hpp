@@ -17,9 +17,9 @@
 #include <SoapySDR/Device.hpp>
 #include <SoapySDR/Formats.h>
 
-namespace gr::soapysdr {
+namespace gr::incubator::soapysdr {
 
-GR_REGISTER_BLOCK("Soapy RX", gr::soapysdr::SoapyRx, ([T]), [ std::complex<float>, float, int16_t, uint8_t ])
+GR_REGISTER_BLOCK("gr::incubator::soapysdr::SoapyRx", gr::incubator::soapysdr::SoapyRx, ([T]), [ std::complex<float>, float, int16_t, uint8_t ])
 
 template<typename T>
 struct SoapyRx : Block<SoapyRx<T>> {
@@ -245,4 +245,4 @@ private:
     }
 };
 
-} // namespace gr::soapysdr
+} // namespace gr::incubator::soapysdr

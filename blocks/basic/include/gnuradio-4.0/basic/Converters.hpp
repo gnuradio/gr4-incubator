@@ -5,7 +5,7 @@
 #include <gnuradio-4.0/Value.hpp>
 #include <gnuradio-4.0/Tensor.hpp>
 
-namespace gr::basic {
+namespace gr::incubator::basic {
 
 template<typename T>
 struct StreamToPmt : gr::Block<StreamToPmt<T>, Resampling<>> {    
@@ -48,4 +48,4 @@ struct StreamToPmt : gr::Block<StreamToPmt<T>, Resampling<>> {
 
 }
 
-GR_REGISTER_BLOCK("gr::basic::StreamToPmt", gr::basic::StreamToPmt, ([T]), [ uint8_t, int16_t, int32_t, float, std::complex<float> ]);
+GR_REGISTER_BLOCK("gr::incubator::basic::StreamToPmt", gr::incubator::basic::StreamToPmt, ([T]), [ uint8_t, int16_t, int32_t, float, std::complex<float> ]);
