@@ -22,6 +22,17 @@ install(
   FILES ${CMAKE_CURRENT_BINARY_DIR}/gnuradio4-zeromq-headers.pc
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 
+if(ENABLE_PLUGINS)
+  file(GLOB GR4I_ZEROMQ_HEADERS CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/zeromq/*.hpp")
+  gr4_incubator_add_block_plugin(Gr4ZeromqBlocks
+    MODULE_NAME_BASE zeromq
+    SPLIT_BLOCK_INSTANTIATIONS
+    HEADERS ${GR4I_ZEROMQ_HEADERS}
+    LINK_LIBRARIES ${GR4I_CPPZMQ_TARGET} gr4_incubator::pmt_converter
+    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/include")
+endif()
+
 if(ENABLE_EXAMPLES)
   add_subdirectory(examples)
 endif()

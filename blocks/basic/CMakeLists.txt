@@ -10,6 +10,16 @@ target_link_libraries(gr4_incubator_blocks_basic_headers INTERFACE ${GR4I_GNURAD
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/basic
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/gnuradio-4.0)
 
+if(ENABLE_PLUGINS)
+  file(GLOB GR4I_BASIC_HEADERS CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/basic/*.hpp")
+  gr4_incubator_add_block_plugin(Gr4BasicBlocks
+    MODULE_NAME_BASE basic
+    SPLIT_BLOCK_INSTANTIATIONS
+    HEADERS ${GR4I_BASIC_HEADERS}
+    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/include")
+endif()
+
 if(ENABLE_TESTING)
   add_subdirectory(test)
 endif()
