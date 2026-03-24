@@ -222,26 +222,23 @@ int main(int argc, char** argv) {
         {"signal_name", gr::pmt::Value(std::string("audio"))},
         {"sample_rate", gr::pmt::Value(static_cast<float>(audio_rate))},
     }));
-
-    const char* connection_error = "connection_error";
-
-    if (fg.connect<"out">(soapy_rx).to<"in">(quad_demod) != gr::ConnectionResult::SUCCESS) {
-        throw gr::exception(connection_error);
+    if (auto conn = fg.connect<"out", "in">(soapy_rx, quad_demod); !conn) {
+        throw gr::exception(std::format("connect failed: {}", conn.error().message));
     }
-    if (fg.connect<"out">(quad_demod).to<"in">(deemph_filter) != gr::ConnectionResult::SUCCESS) {
-        throw gr::exception(connection_error);
+    if (auto conn = fg.connect<"out", "in">(quad_demod, deemph_filter); !conn) {
+        throw gr::exception(std::format("connect failed: {}", conn.error().message));
     }
-    if (fg.connect<"out">(deemph_filter).to<"in">(resampler) != gr::ConnectionResult::SUCCESS) {
-        throw gr::exception(connection_error);
+    if (auto conn = fg.connect<"out", "in">(deemph_filter, resampler); !conn) {
+        throw gr::exception(std::format("connect failed: {}", conn.error().message));
     }
-    if (fg.connect<"out">(resampler).to<"in">(volume_block) != gr::ConnectionResult::SUCCESS) {
-        throw gr::exception(connection_error);
+    if (auto conn = fg.connect<"out", "in">(resampler, volume_block); !conn) {
+        throw gr::exception(std::format("connect failed: {}", conn.error().message));
     }
-    if (fg.connect<"out">(volume_block).to<"in">(audio_sink) != gr::ConnectionResult::SUCCESS) {
-        throw gr::exception(connection_error);
+    if (auto conn = fg.connect<"out", "in">(volume_block, audio_sink); !conn) {
+        throw gr::exception(std::format("connect failed: {}", conn.error().message));
     }
-    if (fg.connect<"out">(volume_block).to<"in">(audio_probe) != gr::ConnectionResult::SUCCESS) {
-        throw gr::exception(connection_error);
+    if (auto conn = fg.connect<"out", "in">(volume_block, audio_probe); !conn) {
+        throw gr::exception(std::format("connect failed: {}", conn.error().message));
     }
 
     gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::multiThreaded> sched;

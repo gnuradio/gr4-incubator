@@ -218,8 +218,8 @@ const suite ZmqPushPullTests = [] {
             {"n_samples_max", gr::pmt::Value(n_samples)},
         }));
 
-        expect(fg.connect<"out">(source).to<"in">(push) == gr::ConnectionResult::SUCCESS);
-        expect(fg.connect<"out">(pull).to<"in">(sink) == gr::ConnectionResult::SUCCESS);
+        expect(fg.connect<"out", "in">(source, push) .has_value());
+        expect(fg.connect<"out", "in">(pull, sink) .has_value());
 
         gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::multiThreaded> sched;
         expect(sched.exchange(std::move(fg)).has_value());
@@ -252,8 +252,8 @@ const suite ZmqPushPullTests = [] {
             {"n_samples_max", gr::pmt::Value(n_samples)},
         }));
 
-        expect(fg.connect<"out">(source).to<"in">(push) == gr::ConnectionResult::SUCCESS);
-        expect(fg.connect<"out">(pull).to<"in">(sink) == gr::ConnectionResult::SUCCESS);
+        expect(fg.connect<"out", "in">(source, push) .has_value());
+        expect(fg.connect<"out", "in">(pull, sink) .has_value());
 
         gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::multiThreaded> sched;
         expect(sched.exchange(std::move(fg)).has_value());
@@ -285,8 +285,8 @@ const suite ZmqPushPullTests = [] {
             {"n_samples_max", gr::pmt::Value(n_samples)},
         }));
 
-        expect(fg.connect<"out">(source).to<"in">(push) == gr::ConnectionResult::SUCCESS);
-        expect(fg.connect<"out">(pull).to<"in">(sink) == gr::ConnectionResult::SUCCESS);
+        expect(fg.connect<"out", "in">(source, push) .has_value());
+        expect(fg.connect<"out", "in">(pull, sink) .has_value());
 
         gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::multiThreaded> sched;
         expect(sched.exchange(std::move(fg)).has_value());
