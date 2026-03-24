@@ -168,9 +168,6 @@ int main(int argc, char** argv) {
         {"channels_fallback", gr::pmt::Value(1)},
         {"device_index", gr::pmt::Value(-1)},
     }));
-
-    const char* connection_error = "connection_error";
-
     if (source_type == "file") {
         if (filename.empty()) {
             throw std::runtime_error("source=file requires --file");
@@ -180,8 +177,8 @@ int main(int argc, char** argv) {
             {"repeat", gr::pmt::Value(true)},
             {"disconnect_on_done", gr::pmt::Value(false)},
         }));
-        if (fg.connect<"out">(source).to<"in">(quad_demod) != gr::ConnectionResult::SUCCESS) {
-            throw gr::exception(connection_error);
+        if (auto conn = fg.connect<"out", "in">(source, quad_demod); !conn) {
+            throw gr::exception(std::format("connect failed: {}", conn.error().message));
         }
     } else {
         auto& source = fg.emplaceBlock<gr::incubator::soapysdr::SoapyRx<T>>(make_props({
@@ -196,22 +193,22 @@ int main(int argc, char** argv) {
             {"debug", gr::pmt::Value(soapy_debug)},
             {"name", gr::pmt::Value(std::string(kSoapyName))},
         }));
-        if (fg.connect<"out">(source).to<"in">(quad_demod) != gr::ConnectionResult::SUCCESS) {
-            throw gr::exception(connection_error);
+        if (auto conn = fg.connect<"out", "in">(source, quad_demod); !conn) {
+            throw gr::exception(std::format("connect failed: {}", conn.error().message));
         }
     }
 
-    if (fg.connect<"out">(quad_demod).to<"in">(deemph_filter) != gr::ConnectionResult::SUCCESS) {
-        throw gr::exception(connection_error);
+    if (auto conn = fg.connect<"out", "in">(quad_demod, deemph_filter); !conn) {
+        throw gr::exception(std::format("connect failed: {}", conn.error().message));
     }
-    if (fg.connect<"out">(deemph_filter).to<"in">(resampler) != gr::ConnectionResult::SUCCESS) {
-        throw gr::exception(connection_error);
+    if (auto conn = fg.connect<"out", "in">(deemph_filter, resampler); !conn) {
+        throw gr::exception(std::format("connect failed: {}", conn.error().message));
     }
-    if (fg.connect<"out">(resampler).to<"in">(volume_block) != gr::ConnectionResult::SUCCESS) {
-        throw gr::exception(connection_error);
+    if (auto conn = fg.connect<"out", "in">(resampler, volume_block); !conn) {
+        throw gr::exception(std::format("connect failed: {}", conn.error().message));
     }
-    if (fg.connect<"out">(volume_block).to<"in">(audio_sink) != gr::ConnectionResult::SUCCESS) {
-        throw gr::exception(connection_error);
+    if (auto conn = fg.connect<"out", "in">(volume_block, audio_sink); !conn) {
+        throw gr::exception(std::format("connect failed: {}", conn.error().message));
     }
 
     gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::singleThreaded> sched;

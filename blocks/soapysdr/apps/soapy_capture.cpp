@@ -68,8 +68,8 @@ int main(int argc, char** argv) {
         {"n_samples_max", static_cast<gr::Size_t>(n_samples)},
     });
 
-    if (fg.connect<"out">(source).to<"in">(sink) != gr::ConnectionResult::SUCCESS) {
-        throw gr::exception("connection_error");
+    if (auto conn = fg.connect<"out", "in">(source, sink); !conn) {
+        throw gr::exception(std::format("connect failed: {}", conn.error().message));
     }
 
     gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::singleThreaded> sched;

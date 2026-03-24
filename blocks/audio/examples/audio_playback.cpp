@@ -1,6 +1,7 @@
 #include <complex>
 #include <cstdint>
 #include <cstdlib>
+#include <format>
 
 #include <gnuradio-4.0/Graph.hpp>
 #include <gnuradio-4.0/Scheduler.hpp>
@@ -50,14 +51,8 @@ int main(int argc, char** argv) {
         // {"channels_fallback", 2},
         // {"sample_rate", 48000}
     });
-
-
-
-    const char* connection_error = "connection_error";
-
-
-    if (fg.connect<"out">(source).to<"in">(sink) != gr::ConnectionResult::SUCCESS) {
-        throw gr::exception(connection_error);
+    if (auto conn = fg.connect<"out", "in">(source, sink); !conn) {
+        throw gr::exception(std::format("connect failed: {}", conn.error().message));
     }
 
 

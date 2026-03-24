@@ -1,6 +1,7 @@
 #include <complex>
 #include <cstdint>
 #include <cstdlib>
+#include <format>
 #include <memory_resource>
 
 #include <gnuradio-4.0/Graph.hpp>
@@ -136,9 +137,6 @@ int main(int argc, char** argv) {
         set_prop(audio_props, "ignore_tag_sample_rate", gr::pmt::Value(true));
     }
     auto& audio_sink = fg.emplaceBlock<gr::incubator::audio::RtAudioSink<TR>>(audio_props);
-
-    const char* connection_error = "connection_error";
-
     if (source_type == "file") {
         if (filename.empty()) {
             throw std::runtime_error("source=file requires --file");
@@ -148,8 +146,8 @@ int main(int argc, char** argv) {
             {"repeat", gr::pmt::Value(repeat_file)},
             {"disconnect_on_done", gr::pmt::Value(true)},
         }));
-        if (fg.connect<"out">(source).to<"in">(quad_demod) != gr::ConnectionResult::SUCCESS) {
-            throw gr::exception(connection_error);
+        if (auto conn = fg.connect<"out", "in">(source, quad_demod); !conn) {
+            throw gr::exception(std::format("connect failed: {}", conn.error().message));
         }
     } else if (source_type == "zmq") {
         auto& source = fg.emplaceBlock<gr::incubator::zeromq::ZmqPullSource<T>>(make_props({
@@ -157,8 +155,8 @@ int main(int argc, char** argv) {
             {"timeout", gr::pmt::Value(zmq_timeout)},
             {"bind", gr::pmt::Value(zmq_bind)},
         }));
-        if (fg.connect<"out">(source).to<"in">(quad_demod) != gr::ConnectionResult::SUCCESS) {
-            throw gr::exception(connection_error);
+        if (auto conn = fg.connect<"out", "in">(source, quad_demod); !conn) {
+            throw gr::exception(std::format("connect failed: {}", conn.error().message));
         }
     } else if (source_type == "soapy") {
         auto& source = fg.emplaceBlock<gr::incubator::soapysdr::SoapyRx<T>>(make_props({
@@ -171,28 +169,23 @@ int main(int argc, char** argv) {
             {"gain", gr::pmt::Value(soapy_gain)},
             {"antenna", gr::pmt::Value(soapy_antenna)},
         }));
-        if (fg.connect<"out">(source).to<"in">(quad_demod) != gr::ConnectionResult::SUCCESS) {
-            throw gr::exception(connection_error);
+        if (auto conn = fg.connect<"out", "in">(source, quad_demod); !conn) {
+            throw gr::exception(std::format("connect failed: {}", conn.error().message));
         }
     } else {
         throw std::runtime_error("unknown source type");
     }
 
 
-    if (fg.connect<"out">(quad_demod).to<"in">(deemph_filter) != gr::ConnectionResult::SUCCESS) {
-        throw gr::exception(connection_error);
+    if (auto conn = fg.connect<"out", "in">(quad_demod, deemph_filter); !conn) {
+        throw gr::exception(std::format("connect failed: {}", conn.error().message));
     }
-    if (fg.connect<"out">(deemph_filter).to<"in">(resampler) != gr::ConnectionResult::SUCCESS) {
-        throw gr::exception(connection_error);
+    if (auto conn = fg.connect<"out", "in">(deemph_filter, resampler); !conn) {
+        throw gr::exception(std::format("connect failed: {}", conn.error().message));
     }
 
-    // if (fg.connect<"out">(quad_demod).to<"in">(resampler) != gr::ConnectionResult::SUCCESS) {
-    //     throw gr::exception(connection_error);
-    // }
-
-
-    if (fg.connect<"out">(resampler).to<"in">(audio_sink) != gr::ConnectionResult::SUCCESS) {
-        throw gr::exception(connection_error);
+    if (auto conn = fg.connect<"out", "in">(resampler, audio_sink); !conn) {
+        throw gr::exception(std::format("connect failed: {}", conn.error().message));
     }
 
 
