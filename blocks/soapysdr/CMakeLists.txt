@@ -13,6 +13,17 @@ target_link_libraries(gr4_incubator_blocks_soapysdr_headers INTERFACE
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/soapysdr
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/gnuradio-4.0)
 
+if(ENABLE_PLUGINS)
+  file(GLOB GR4I_SOAPYSDR_HEADERS CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/soapysdr/*.hpp")
+  gr4_incubator_add_block_plugin(Gr4SoapySdrBlocks
+    MODULE_NAME_BASE soapysdr
+    SPLIT_BLOCK_INSTANTIATIONS
+    HEADERS ${GR4I_SOAPYSDR_HEADERS}
+    LINK_LIBRARIES ${GR4I_SOAPYSDR_TARGET}
+    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/include")
+endif()
+
 if(ENABLE_EXAMPLES)
   add_subdirectory(apps)
 endif()
