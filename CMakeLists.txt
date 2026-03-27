@@ -12,12 +12,32 @@ option(ENABLE_EXAMPLES "Enable example targets" ON)
 option(ENABLE_GUI_EXAMPLES "Enable GUI examples that require ImGui/ImPlot" OFF)
 option(ENABLE_PLUGINS "Enable plugin build path" OFF)
 option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
+option(USE_CCACHE "Use ccache if available" ON)
 
 set(IMPLOT_SOURCE_DIR "" CACHE PATH "Path to an implot source tree (contains implot.h)")
 set(IMPLOT_INCLUDE_DIR "" CACHE PATH "Override include directory containing implot.h")
 set(IMPLOT_LIBRARY "" CACHE FILEPATH "Override ImPlot library file (e.g. /usr/local/lib/libimplot.so)")
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules")
+
+# Use ccache if found and enabled
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM AND USE_CCACHE)
+  message(STATUS "ccache found and will be used")
+  set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
+else()
+  message(STATUS "ccache will not be used")
+endif()
+
+# Prefer forced colored compiler output if there's a chance we'd otherwise get none at all. Ninja and ccache
+# can consume compiler output and break compiler terminal color auto-detection.
+if((CMAKE_GENERATOR STREQUAL "Ninja" OR (CCACHE_PROGRAM AND USE_CCACHE)) AND NOT DEFINED CMAKE_COLOR_DIAGNOSTICS)
+  message(
+    STATUS
+      "Forcing compiler color output due to the use of Ninja and/or ccache. Use -DCMAKE_COLOR_DIAGNOSTICS=OFF to turn it off."
+  )
+  set(CMAKE_COLOR_DIAGNOSTICS ON)
+endif()
 
 include(cmake/Dependencies.cmake)
 include(cmake/PluginHelpers.cmake)
