@@ -9,6 +9,7 @@ add_subdirectory(analog)
 add_subdirectory(pfb)
 add_subdirectory(zeromq)
 add_subdirectory(audio)
+add_subdirectory(sigmf)
 add_subdirectory(soapysdr)
 add_subdirectory(http)
 
@@ -19,6 +20,7 @@ target_link_libraries(gr4_incubator_blocks_headers INTERFACE
   gr4_incubator::blocks_basic_headers
   gr4_incubator::blocks_analog_headers
   gr4_incubator::blocks_audio_headers
+  gr4_incubator::blocks_sigmf_headers
   gr4_incubator::blocks_pfb_headers
   gr4_incubator::blocks_zeromq_headers
   gr4_incubator::blocks_soapysdr_headers
