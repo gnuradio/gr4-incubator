@@ -1,0 +1,23 @@
+{
+  "global": {
+    "core:datatype": "cf32_le",
+    "core:sample_rate": 1000000,
+    "core:version": "1.0.0",
+    "core:datetime": "2026-03-30T00:00:00Z"
+  },
+  "captures": [
+    {
+      "core:sample_start": 0,
+      "core:frequency": 915000000,
+      "core:datetime": "2026-03-30T00:00:00Z"
+    }
+  ],
+  "annotations": [
+    {
+      "core:sample_start": 1,
+      "core:sample_count": 2,
+      "core:label": "burst",
+      "core:comment": "tiny fixture"
+    }
+  ]
+}

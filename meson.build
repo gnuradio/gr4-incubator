@@ -23,6 +23,7 @@ gr4_soapy_blocks_dep = declare_dependency(
 boost_ut_proj = subproject('boost-ut')
 ut_dep = boost_ut_proj.get_variable('boostut_dep')
 cli11_dep = dependency('CLI11')
+nlohmann_json_dep = dependency('nlohmann_json', required: true)
 
 # fmt_dep = dependency('fmt', fallback: ['fmt', 'fmt_dep'])
 # pmt_dep = dependency('pmt', fallback: ['pmt', 'pmt_dep'])

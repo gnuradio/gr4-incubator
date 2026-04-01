@@ -102,6 +102,11 @@ function(gr4_incubator_add_block_plugin plugin_target_base)
     gr4_incubator_merge_files_into("${_gen_dir}/raw_calls.hpp" ${_raw_calls_hpp_in})
   endif()
 
+  # Ninja writes depfiles alongside the object output path for these generated
+  # sources, so pre-create the nested directory shape it expects.
+  file(MAKE_DIRECTORY
+    "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${plugin_target_base}.dir/__/__/generated_plugins/${GR4I_PLUGIN_MODULE_NAME_BASE}")
+
   add_library(${plugin_target_base} OBJECT ${_generated_cpp})
   set_target_properties(${plugin_target_base} PROPERTIES POSITION_INDEPENDENT_CODE ON)
   target_include_directories(${plugin_target_base} PRIVATE "${_gen_dir}" ${GR4I_PLUGIN_INCLUDE_DIRECTORIES})

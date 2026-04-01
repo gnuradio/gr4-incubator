@@ -117,6 +117,22 @@ function(_gr4_incubator_find_boost_ut out_target)
   set(${out_target} gr4_incubator::boost_ut PARENT_SCOPE)
 endfunction()
 
+function(_gr4_incubator_find_nlohmann_json out_target)
+  find_package(nlohmann_json CONFIG QUIET)
+  if(TARGET nlohmann_json::nlohmann_json)
+    set(${out_target} nlohmann_json::nlohmann_json PARENT_SCOPE)
+    return()
+  endif()
+
+  _gr4_incubator_optional_pkgconfig(_nlohmann_json_pkg _nlohmann_json_found nlohmann_json)
+  if(_nlohmann_json_found)
+    set(${out_target} "${_nlohmann_json_pkg}" PARENT_SCOPE)
+    return()
+  endif()
+
+  message(FATAL_ERROR "nlohmann_json not found. Install a system package providing nlohmann/json.hpp.")
+endfunction()
+
 function(_gr4_incubator_setup_gui_contract)
   set(GR4I_GUI_READY FALSE PARENT_SCOPE)
   set(GR4I_GLFW_TARGET "" PARENT_SCOPE)
@@ -319,6 +335,9 @@ function(gr4_incubator_resolve_dependencies)
   else()
     set(GR4I_SOAPYSDR_TARGET "" PARENT_SCOPE)
   endif()
+
+  _gr4_incubator_find_nlohmann_json(_nlohmann_json_target)
+  set(GR4I_NLOHMANN_JSON_TARGET "${_nlohmann_json_target}" PARENT_SCOPE)
 
   if(ENABLE_EXAMPLES)
     _gr4_incubator_find_cli11(_cli11_target)
