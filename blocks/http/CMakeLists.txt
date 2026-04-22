@@ -9,6 +9,7 @@ target_include_directories(gr4_incubator_blocks_http_headers INTERFACE
 )
 target_link_libraries(gr4_incubator_blocks_http_headers INTERFACE
   ${GR4I_GNURADIO4_TARGET}
+  ${GR4I_HTTPLIB_TARGET}
   Threads::Threads
 )
 
@@ -22,7 +23,7 @@ if(ENABLE_PLUGINS)
     MODULE_NAME_BASE http
     SPLIT_BLOCK_INSTANTIATIONS
     HEADERS ${GR4I_HTTP_HEADERS}
-    LINK_LIBRARIES Threads::Threads
+    LINK_LIBRARIES ${GR4I_HTTPLIB_TARGET} Threads::Threads
     INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/include")
 endif()
 
