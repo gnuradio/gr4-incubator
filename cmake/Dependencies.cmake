@@ -133,6 +133,28 @@ function(_gr4_incubator_find_nlohmann_json out_target)
   message(FATAL_ERROR "nlohmann_json not found. Install a system package providing nlohmann/json.hpp.")
 endfunction()
 
+function(_gr4_incubator_find_httplib out_target)
+  find_package(httplib CONFIG QUIET)
+  if(TARGET httplib::httplib)
+    set(${out_target} httplib::httplib PARENT_SCOPE)
+    return()
+  endif()
+
+  _gr4_incubator_optional_pkgconfig(_httplib_pkg _httplib_found cpp-httplib)
+  if(_httplib_found)
+    set(${out_target} "${_httplib_pkg}" PARENT_SCOPE)
+    return()
+  endif()
+
+  _gr4_incubator_optional_pkgconfig(_httplib_pkg_l _httplib_found_l httplib)
+  if(_httplib_found_l)
+    set(${out_target} "${_httplib_pkg_l}" PARENT_SCOPE)
+    return()
+  endif()
+
+  message(FATAL_ERROR "cpp-httplib not found. Install a system package providing httplib::httplib or pkg-config module cpp-httplib.")
+endfunction()
+
 function(_gr4_incubator_setup_gui_contract)
   set(GR4I_GUI_READY FALSE PARENT_SCOPE)
   set(GR4I_GLFW_TARGET "" PARENT_SCOPE)
@@ -351,6 +373,13 @@ function(gr4_incubator_resolve_dependencies)
 
   _gr4_incubator_find_nlohmann_json(_nlohmann_json_target)
   set(GR4I_NLOHMANN_JSON_TARGET "${_nlohmann_json_target}" PARENT_SCOPE)
+
+  if(ENABLE_TESTING OR ENABLE_PLUGINS)
+    _gr4_incubator_find_httplib(_httplib_target)
+    set(GR4I_HTTPLIB_TARGET "${_httplib_target}" PARENT_SCOPE)
+  else()
+    set(GR4I_HTTPLIB_TARGET "" PARENT_SCOPE)
+  endif()
 
   if(ENABLE_EXAMPLES)
     _gr4_incubator_find_cli11(_cli11_target)
