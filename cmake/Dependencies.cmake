@@ -287,7 +287,20 @@ endfunction()
 
 function(gr4_incubator_resolve_dependencies)
   _gr4_incubator_require_pkgconfig(GR4I_GNURADIO4_TARGET gnuradio4)
-  set(GR4I_GNURADIO4_TARGET "${GR4I_GNURADIO4_TARGET}" PARENT_SCOPE)
+  if(NOT TARGET gr4_incubator_gnuradio4)
+    add_library(gr4_incubator_gnuradio4 INTERFACE)
+    target_link_libraries(gr4_incubator_gnuradio4 INTERFACE "${GR4I_GNURADIO4_TARGET}")
+
+    # gnuradio4.pc may not encode the CPR dependency even though the installed
+    # static core archive references HTTP/fileio symbols.
+    find_package(cpr CONFIG QUIET)
+    if(TARGET cpr::cpr)
+      target_link_libraries(gr4_incubator_gnuradio4 INTERFACE cpr::cpr)
+    endif()
+
+    add_library(gr4_incubator::gnuradio4 ALIAS gr4_incubator_gnuradio4)
+  endif()
+  set(GR4I_GNURADIO4_TARGET gr4_incubator::gnuradio4 PARENT_SCOPE)
 
   if(ENABLE_PLUGINS)
     find_program(GR4I_PARSE_REGISTRATIONS_EXE NAMES gnuradio_4_0_parse_registrations)
