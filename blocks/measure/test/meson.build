@@ -1,6 +1,5 @@
 tests = [
-  ['qa_Copy', ['qa_Copy.cpp'], [gr4_channel_blocks_dep]],
-  ['qa_Converters', ['qa_Converters.cpp'], [gr4_channel_blocks_dep]]
+  ['qa_AWGNMeasure', ['qa_AWGNMeasure.cpp'], [gr4_measure_blocks_dep]],
 ]
 
 common_deps = [gr4_dep, ut_dep]

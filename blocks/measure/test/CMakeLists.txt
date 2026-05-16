@@ -1,0 +1,8 @@
+gr4_incubator_add_ut_test(qa_EVMSink qa_EVMSink.cpp)
+target_link_libraries(qa_EVMSink PRIVATE gr4_incubator::blocks_measure_headers gr4_incubator::blocks_basic_headers)
+
+gr4_incubator_add_ut_test(qa_HistogramSink qa_HistogramSink.cpp)
+target_link_libraries(qa_HistogramSink PRIVATE gr4_incubator::blocks_measure_headers gr4_incubator::blocks_basic_headers)
+
+gr4_incubator_add_ut_test(qa_PowerEstimator qa_PowerEstimator.cpp)
+target_link_libraries(qa_PowerEstimator PRIVATE gr4_incubator::blocks_measure_headers gr4_incubator::blocks_basic_headers)

@@ -3,3 +3,18 @@ target_link_libraries(qa_Copy PRIVATE gr4_incubator::blocks_basic_headers)
 
 gr4_incubator_add_ut_test(qa_Converters qa_Converters.cpp)
 target_link_libraries(qa_Converters PRIVATE gr4_incubator::blocks_basic_headers)
+
+gr4_incubator_add_ut_test(qa_AGC qa_AGC.cpp)
+target_link_libraries(qa_AGC PRIVATE gr4_incubator::blocks_basic_headers)
+
+gr4_incubator_add_ut_test(qa_DCBlocker qa_DCBlocker.cpp)
+target_link_libraries(qa_DCBlocker PRIVATE gr4_incubator::blocks_basic_headers)
+
+gr4_incubator_add_ut_test(qa_MovingAverage qa_MovingAverage.cpp)
+target_link_libraries(qa_MovingAverage PRIVATE gr4_incubator::blocks_basic_headers)
+
+gr4_incubator_add_ut_test(qa_PeakDetector qa_PeakDetector.cpp)
+target_link_libraries(qa_PeakDetector PRIVATE gr4_incubator::blocks_basic_headers)
+
+gr4_incubator_add_ut_test(qa_PeakTagger qa_PeakTagger.cpp)
+target_link_libraries(qa_PeakTagger PRIVATE gr4_incubator::blocks_basic_headers)
