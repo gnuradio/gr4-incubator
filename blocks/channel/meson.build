@@ -40,7 +40,7 @@ endif
 pkgconfig = import('pkgconfig')
 pkgconfig.generate(
   name : 'gnuradio4-channel-headers',
-  description : 'GNU Radio 4.0 Basic Headers',
+  description : 'GNU Radio 4.0 Channel Headers',
   version : meson.project_version(),
   subdirs: 'gnuradio-4.0/channel',
 )
@@ -48,9 +48,9 @@ pkgconfig.generate(
 #TODO - build into plugin generator
 if get_option('enable_plugins')
 pkgconfig.generate(
-  Gr4BasicBlocks_shared,
+  Gr4ChannelBlocks_shared,
   name : 'gnuradio4-channel',
-  description : 'GNU Radio 4.0 Basic Shared Blocks',
+  description : 'GNU Radio 4.0 Channel Shared Blocks',
   version : meson.project_version(),
   subdirs: 'gnuradio-4.0/channel',
 )

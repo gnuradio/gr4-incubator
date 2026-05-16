@@ -1,0 +1,23 @@
+gr4_incubator_add_ut_test(qa_AWGNChannel qa_AWGNChannel.cpp)
+target_link_libraries(qa_AWGNChannel PRIVATE gr4_incubator::blocks_channel_headers)
+
+gr4_incubator_add_ut_test(qa_DCOffsetChannel qa_DCOffsetChannel.cpp)
+target_link_libraries(qa_DCOffsetChannel PRIVATE gr4_incubator::blocks_channel_headers)
+
+gr4_incubator_add_ut_test(qa_FlatFadingChannel qa_FlatFadingChannel.cpp)
+target_link_libraries(qa_FlatFadingChannel PRIVATE gr4_incubator::blocks_channel_headers)
+
+gr4_incubator_add_ut_test(qa_FrequencyOffsetChannel qa_FrequencyOffsetChannel.cpp)
+target_link_libraries(qa_FrequencyOffsetChannel PRIVATE gr4_incubator::blocks_channel_headers)
+
+gr4_incubator_add_ut_test(qa_IQImbalanceChannel qa_IQImbalanceChannel.cpp)
+target_link_libraries(qa_IQImbalanceChannel PRIVATE gr4_incubator::blocks_channel_headers)
+
+gr4_incubator_add_ut_test(qa_RayleighFadingChannel qa_RayleighFadingChannel.cpp)
+target_link_libraries(qa_RayleighFadingChannel PRIVATE gr4_incubator::blocks_channel_headers gr4_incubator::blocks_basic_headers)
+
+gr4_incubator_add_ut_test(qa_RicianFadingChannel qa_RicianFadingChannel.cpp)
+target_link_libraries(qa_RicianFadingChannel PRIVATE gr4_incubator::blocks_channel_headers)
+
+gr4_incubator_add_ut_test(qa_SNRSteppedAWGN qa_SNRSteppedAWGN.cpp)
+target_link_libraries(qa_SNRSteppedAWGN PRIVATE gr4_incubator::blocks_channel_headers gr4_incubator::blocks_basic_headers)

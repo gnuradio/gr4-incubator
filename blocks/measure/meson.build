@@ -5,11 +5,11 @@ install_subdir(
   install_dir: join_paths(get_option('includedir'), 'gnuradio-4.0')
 )
 
-libname = 'gr4-channel-blocks'
+libname = 'gr4-measure-blocks'
 
 deps = [gr4_dep]
 # Interface library
-# gr4_channel_blocks = library(
+# gr4_measure_blocks = library(
 #   libname,
 #   sources: [],
 #   include_directories: inc_dirs,
@@ -18,7 +18,7 @@ deps = [gr4_dep]
 # )
 
 # Expose the dependency for subprojects or installation
-gr4_channel_blocks_dep = declare_dependency(
+gr4_measure_blocks_dep = declare_dependency(
   include_directories: inc_dirs
 )
 
@@ -39,20 +39,20 @@ endif
 
 pkgconfig = import('pkgconfig')
 pkgconfig.generate(
-  name : 'gnuradio4-channel-headers',
-  description : 'GNU Radio 4.0 Basic Headers',
+  name : 'gnuradio4-measure-headers',
+  description : 'GNU Radio 4.0 Measure Headers',
   version : meson.project_version(),
-  subdirs: 'gnuradio-4.0/channel',
+  subdirs: 'gnuradio-4.0/measure',
 )
 
 #TODO - build into plugin generator
 if get_option('enable_plugins')
 pkgconfig.generate(
-  Gr4BasicBlocks_shared,
-  name : 'gnuradio4-channel',
-  description : 'GNU Radio 4.0 Basic Shared Blocks',
+  Gr4MeasureBlocks_shared,
+  name : 'gnuradio4-measure',
+  description : 'GNU Radio 4.0 Measure Shared Blocks',
   version : meson.project_version(),
-  subdirs: 'gnuradio-4.0/channel',
+  subdirs: 'gnuradio-4.0/measure',
 )
 endif
 
