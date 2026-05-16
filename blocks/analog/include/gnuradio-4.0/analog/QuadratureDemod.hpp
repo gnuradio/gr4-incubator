@@ -7,7 +7,7 @@
 
 namespace gr::incubator::analog {
 
-GR_REGISTER_BLOCK("gr::incubator::analog::QuadratureDemod", gr::incubator::analog::QuadratureDemod, ([T]), [ uint8_t, int16_t, int32_t ])
+GR_REGISTER_BLOCK("gr::incubator::analog::QuadratureDemod", gr::incubator::analog::QuadratureDemod, ([T]), [ float, double ])
 
 template<typename T>
 struct QuadratureDemod : Block<QuadratureDemod<T>> {
@@ -31,4 +31,3 @@ struct QuadratureDemod : Block<QuadratureDemod<T>> {
 };
 
 } // namespace gr::incubator::analog
-
