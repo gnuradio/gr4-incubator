@@ -24,13 +24,12 @@ T peakMagnitude(std::complex<T> x) noexcept {
 
 template<typename T>
 struct PeakTagger : Block<PeakTagger<T>> {
-    using Description = Doc<
-        "1:1 passthrough with 1-sample delay that writes peak tags on local magnitude maxima. "
-        "When magnitude(x[n-1]) > magnitude(x[n-2]) AND magnitude(x[n-1]) > magnitude(x[n]), "
-        "a tag {\"peak\": true, \"peak_value\": magnitude(x[n-1])} is published on that output sample. "
-        "Works for both real T (only positive peaks detected) and complex<T> (envelope peaks). "
-        "The very first output sample is T{} due to the lookahead delay. "
-        "Signal chain: [signal] -> PeakTagger -> [downstream] + [tag consumer for peak locations].">;
+    using Description = Doc<"1:1 passthrough with 1-sample delay that writes peak tags on local magnitude maxima. "
+                            "When magnitude(x[n-1]) > magnitude(x[n-2]) AND magnitude(x[n-1]) > magnitude(x[n]), "
+                            "a tag {\"peak\": true, \"peak_value\": magnitude(x[n-1])} is published on that output sample. "
+                            "Works for both real T (only positive peaks detected) and complex<T> (envelope peaks). "
+                            "The very first output sample is T{} due to the lookahead delay. "
+                            "Signal chain: [signal] -> PeakTagger -> [downstream] + [tag consumer for peak locations].">;
 
     PortIn<T>  in;
     PortOut<T> out;

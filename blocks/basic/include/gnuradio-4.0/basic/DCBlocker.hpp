@@ -10,13 +10,12 @@ using namespace gr;
 
 template<typename T>
 struct DCBlocker : Block<DCBlocker<T>> {
-    using Description = Doc<
-        "First-order IIR DC-blocking filter. Removes the DC component while passing all AC signals "
-        "using the high-pass difference equation: y[n] = x[n] - x[n-1] + alpha*y[n-1]. "
-        "The -3 dB cutoff is approximately f_c ~= (1-alpha)/(2*pi)*f_s; "
-        "for alpha=0.999, f_c ~= 0.000159*f_s (e.g. 159 Hz at 1 Msps). "
-        "Operates on std::complex<T> by applying the filter independently to real and imaginary parts. "
-        "Signal chain (direct-conversion receiver): ADC -> DCBlocker -> IQImbalanceCorrector -> AGC -> CostasLoop.">;
+    using Description = Doc<"First-order IIR DC-blocking filter. Removes the DC component while passing all AC signals "
+                            "using the high-pass difference equation: y[n] = x[n] - x[n-1] + alpha*y[n-1]. "
+                            "The -3 dB cutoff is approximately f_c ~= (1-alpha)/(2*pi)*f_s; "
+                            "for alpha=0.999, f_c ~= 0.000159*f_s (e.g. 159 Hz at 1 Msps). "
+                            "Operates on std::complex<T> by applying the filter independently to real and imaginary parts. "
+                            "Signal chain (direct-conversion receiver): ADC -> DCBlocker -> IQImbalanceCorrector -> AGC -> CostasLoop.">;
 
     PortIn<std::complex<T>>  in;
     PortOut<std::complex<T>> out;

@@ -11,15 +11,14 @@ using namespace gr;
 
 template<typename T>
 struct AGC : Block<AGC<T>> {
-    using Description = Doc<
-        "Automatic gain control (AGC). Applies a scalar gain to each input sample and updates "
-        "the gain each sample using a simple power-error feedback loop: "
-        "y = x * _gain, err = reference_power - |y|^2, _gain += rate * err, "
-        "_gain = clamp(_gain, min_gain, max_gain). "
-        "When |y|^2 is below reference_power the gain increases; when above it decreases. "
-        "rate is the loop bandwidth: larger values track faster but are noisier. "
-        "Typical use: insert between the receive front-end and the matched filter so "
-        "downstream blocks (Costas loop, timing sync, demodulator) always see near-unit-amplitude symbols.">;
+    using Description = Doc<"Automatic gain control (AGC). Applies a scalar gain to each input sample and updates "
+                            "the gain each sample using a simple power-error feedback loop: "
+                            "y = x * _gain, err = reference_power - |y|^2, _gain += rate * err, "
+                            "_gain = clamp(_gain, min_gain, max_gain). "
+                            "When |y|^2 is below reference_power the gain increases; when above it decreases. "
+                            "rate is the loop bandwidth: larger values track faster but are noisier. "
+                            "Typical use: insert between the receive front-end and the matched filter so "
+                            "downstream blocks (Costas loop, timing sync, demodulator) always see near-unit-amplitude symbols.">;
 
     PortIn<std::complex<T>>  in;
     PortOut<std::complex<T>> out;

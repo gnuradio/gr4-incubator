@@ -15,13 +15,12 @@ using namespace gr;
 
 template<typename T>
 struct VectorSink : Block<VectorSink<T>> {
-    using Description = Doc<
-        "Accumulates all incoming samples into an internal std::vector<T>. "
-        "After the graph finishes, call data() to retrieve the collected sequence for inspection or assertion. "
-        "max_samples (default 0 = unlimited) caps the buffer size; when the limit is reached the block "
-        "calls requestStop(), useful as a termination condition for graphs that run indefinitely. "
-        "start() clears the buffer so the sink can be reused across multiple graph runs. "
-        "Signal chain: [any source / processing chain] -> VectorSink.">;
+    using Description = Doc<"Accumulates all incoming samples into an internal std::vector<T>. "
+                            "After the graph finishes, call data() to retrieve the collected sequence for inspection or assertion. "
+                            "max_samples (default 0 = unlimited) caps the buffer size; when the limit is reached the block "
+                            "calls requestStop(), useful as a termination condition for graphs that run indefinitely. "
+                            "start() clears the buffer so the sink can be reused across multiple graph runs. "
+                            "Signal chain: [any source / processing chain] -> VectorSink.">;
 
     PortIn<T> in;
 

@@ -10,11 +10,10 @@ GR_REGISTER_BLOCK("gr::incubator::basic::StaticCast", gr::incubator::basic::Stat
 template<typename TIN, typename TOUT>
 struct StaticCast : Block<StaticCast<TIN, TOUT>> {
 
-    using Description = Doc<
-        "Type-converting passthrough: applies static_cast<TOUT> to every input sample. "
-        "Bridges blocks with mismatched port types, e.g. int16_t ADC output to a float processing chain, "
-        "or float intermediate results to uint8_t output. "
-        "No saturation or rounding is applied beyond what static_cast provides.">;
+    using Description = Doc<"Type-converting passthrough: applies static_cast<TOUT> to every input sample. "
+                            "Bridges blocks with mismatched port types, e.g. int16_t ADC output to a float processing chain, "
+                            "or float intermediate results to uint8_t output. "
+                            "No saturation or rounding is applied beyond what static_cast provides.">;
 
     PortIn<TIN>   in;
     PortOut<TOUT> out;

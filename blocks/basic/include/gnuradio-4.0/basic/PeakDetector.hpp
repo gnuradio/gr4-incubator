@@ -5,21 +5,19 @@
 #include <gnuradio-4.0/Block.hpp>
 #include <gnuradio-4.0/BlockRegistry.hpp>
 
-
 namespace gr::incubator::basic {
 
 using namespace gr;
 
 template<typename T>
 struct PeakDetector : Block<PeakDetector<T>> {
-    using Description = Doc<
-        "Detects local maxima in a real-valued stream. Outputs 1 when the centre sample of a "
-        "3-sample window exceeds threshold AND is strictly greater than both its neighbours; otherwise 0. "
-        "min_gap enforces a minimum number of samples between successive peak outputs, preventing "
-        "a broad peak from triggering multiple times due to noise on a plateau. "
-        "Output is delayed by one sample relative to the input (lookahead requirement). "
-        "Typical uses: carrier frequency peak in a periodogram, pilot tone finder, "
-        "burst/preamble power peak detection.">;
+    using Description = Doc<"Detects local maxima in a real-valued stream. Outputs 1 when the centre sample of a "
+                            "3-sample window exceeds threshold AND is strictly greater than both its neighbours; otherwise 0. "
+                            "min_gap enforces a minimum number of samples between successive peak outputs, preventing "
+                            "a broad peak from triggering multiple times due to noise on a plateau. "
+                            "Output is delayed by one sample relative to the input (lookahead requirement). "
+                            "Typical uses: carrier frequency peak in a periodogram, pilot tone finder, "
+                            "burst/preamble power peak detection.">;
 
     PortIn<T>        in;
     PortOut<uint8_t> out;

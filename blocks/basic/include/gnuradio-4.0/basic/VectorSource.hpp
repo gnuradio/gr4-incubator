@@ -14,14 +14,13 @@ using namespace gr;
 
 template<typename T>
 struct VectorSource : Block<VectorSource<T>> {
-    using Description = Doc<
-        "Replays a fixed sequence of samples, then stops the graph. "
-        "Emits data[0], data[1], ..., data[N-1] in order, then calls requestStop() so "
-        "the scheduler tears down the graph automatically. Output is produced in chunks "
-        "matched to the downstream port's buffer size. "
-        "Primary use: unit tests and demos — inject a deterministic signal without real hardware. "
-        "Call start() to reset the read position and re-run the scheduler for repeated playback. "
-        "Signal chain: VectorSource -> [processing chain] -> VectorSink.">;
+    using Description = Doc<"Replays a fixed sequence of samples, then stops the graph. "
+                            "Emits data[0], data[1], ..., data[N-1] in order, then calls requestStop() so "
+                            "the scheduler tears down the graph automatically. Output is produced in chunks "
+                            "matched to the downstream port's buffer size. "
+                            "Primary use: unit tests and demos — inject a deterministic signal without real hardware. "
+                            "Call start() to reset the read position and re-run the scheduler for repeated playback. "
+                            "Signal chain: VectorSource -> [processing chain] -> VectorSink.">;
 
     PortOut<T> out;
 

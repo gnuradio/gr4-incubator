@@ -28,15 +28,14 @@ namespace gr::incubator::basic {
 
 template<typename T>
 struct StreamToPmt : gr::Block<StreamToPmt<T>, Resampling<>> {
-    using Description = Doc<
-        "Converts a stream of samples to uniform vector PMTs of a specified packet size. "
-        "Collects exactly packet_size input samples per output item and wraps them as a "
-        "gr::Tensor<T> inside a gr::pmt::Value. Uses Resampling<> so the scheduler guarantees "
-        "input_chunk_size samples are available before processBulk is called. "
-        "Use cases: bridging a streaming DSP graph to a PMT-based message bus or logger; "
-        "creating fixed-size analysis windows (FFT, correlation) as PMT messages; "
-        "sending blocks of samples over ZeroMQ or other message transports that expect PMT values. "
-        "Changing packet_size at runtime triggers settingsChanged() which resizes the internal buffer.">;
+    using Description = Doc<"Converts a stream of samples to uniform vector PMTs of a specified packet size. "
+                            "Collects exactly packet_size input samples per output item and wraps them as a "
+                            "gr::Tensor<T> inside a gr::pmt::Value. Uses Resampling<> so the scheduler guarantees "
+                            "input_chunk_size samples are available before processBulk is called. "
+                            "Use cases: bridging a streaming DSP graph to a PMT-based message bus or logger; "
+                            "creating fixed-size analysis windows (FFT, correlation) as PMT messages; "
+                            "sending blocks of samples over ZeroMQ or other message transports that expect PMT values. "
+                            "Changing packet_size at runtime triggers settingsChanged() which resizes the internal buffer.">;
 
     PortIn<T>               in;
     PortOut<gr::pmt::Value> out;
