@@ -59,8 +59,8 @@ const boost::ut::suite<"StaticCast graph"> staticCastGraphTests = [] {
         src.data = inputVec;
         auto& blk = graph.emplaceBlock<gr::incubator::basic::StaticCast<int16_t, float>>();
         auto& snk = graph.emplaceBlock<gr::incubator::basic::VectorSink<float>>();
-        expect(graph.connect<"out">(src).to<"in">(blk) == gr::ConnectionResult::SUCCESS);
-        expect(graph.connect<"out">(blk).to<"in">(snk) == gr::ConnectionResult::SUCCESS);
+        expect(graph.connect<"out", "in">(src, blk).has_value());
+        expect(graph.connect<"out", "in">(blk, snk).has_value());
 
         gr::scheduler::Simple sched;
         expect(sched.exchange(std::move(graph)).has_value());

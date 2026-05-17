@@ -110,8 +110,8 @@ const boost::ut::suite<"MovingAverage graph"> movingAverageGraphTests = [] {
         src.data = inputVec;
         auto&     blk = graph.emplaceBlock<gr::incubator::basic::MovingAverage<float>>(make_props({{"window_size", 4u}}));
         auto&     snk = graph.emplaceBlock<gr::incubator::basic::VectorSink<std::complex<float>>>();
-        expect(graph.connect<"out">(src).to<"in">(blk) == gr::ConnectionResult::SUCCESS);
-        expect(graph.connect<"out">(blk).to<"in">(snk) == gr::ConnectionResult::SUCCESS);
+        expect(graph.connect<"out", "in">(src, blk).has_value());
+        expect(graph.connect<"out", "in">(blk, snk).has_value());
 
         gr::scheduler::Simple sched;
         expect(sched.exchange(std::move(graph)).has_value());

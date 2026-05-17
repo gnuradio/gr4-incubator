@@ -89,9 +89,9 @@ const boost::ut::suite<"MagPhasetoComplex graph"> magPhaseGraphTests = [] {
         auto& blk = graph.emplaceBlock<gr::incubator::basic::MagPhasetoComplex<float>>();
         auto& snk = graph.emplaceBlock<gr::incubator::basic::VectorSink<std::complex<float>>>();
 
-        expect(graph.connect<"out">(mag_src).to<"mag">(blk) == gr::ConnectionResult::SUCCESS);
-        expect(graph.connect<"out">(phase_src).to<"phase">(blk) == gr::ConnectionResult::SUCCESS);
-        expect(graph.connect<"out">(blk).to<"in">(snk) == gr::ConnectionResult::SUCCESS);
+        expect(graph.connect<"out", "mag">(mag_src, blk).has_value());
+        expect(graph.connect<"out", "phase">(phase_src, blk).has_value());
+        expect(graph.connect<"out", "in">(blk, snk).has_value());
 
         gr::scheduler::Simple sched;
         expect(sched.exchange(std::move(graph)).has_value());
