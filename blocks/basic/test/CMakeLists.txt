@@ -18,3 +18,15 @@ target_link_libraries(qa_PeakDetector PRIVATE gr4_incubator::blocks_basic_header
 
 gr4_incubator_add_ut_test(qa_PeakTagger qa_PeakTagger.cpp)
 target_link_libraries(qa_PeakTagger PRIVATE gr4_incubator::blocks_basic_headers)
+
+gr4_incubator_add_ut_test(qa_StaticCast qa_StaticCast.cpp)
+target_link_libraries(qa_StaticCast PRIVATE gr4_incubator::blocks_basic_headers)
+
+gr4_incubator_add_ut_test(qa_EndianSwap qa_EndianSwap.cpp)
+target_link_libraries(qa_EndianSwap PRIVATE gr4_incubator::blocks_basic_headers)
+
+gr4_incubator_add_ut_test(qa_MagPhasetoComplex qa_MagPhasetoComplex.cpp)
+target_link_libraries(qa_MagPhasetoComplex PRIVATE gr4_incubator::blocks_basic_headers)
+
+gr4_incubator_add_ut_test(qa_ComplexToMagPhase qa_ComplexToMagPhase.cpp)
+target_link_libraries(qa_ComplexToMagPhase PRIVATE gr4_incubator::blocks_basic_headers)
