@@ -1,0 +1,2 @@
+gr4_incubator_add_ut_test(qa_BlockingBackoff qa_BlockingBackoff.cpp)
+target_link_libraries(qa_BlockingBackoff PRIVATE gr4_incubator::schedulers_headers)

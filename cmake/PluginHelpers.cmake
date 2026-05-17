@@ -121,3 +121,29 @@ function(gr4_incubator_add_block_plugin plugin_target_base)
   target_link_libraries(${_plugin_lib_name} PRIVATE ${plugin_target_base})
   install(TARGETS ${_plugin_lib_name} LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 endfunction()
+
+function(gr4_incubator_add_scheduler_plugin plugin_target)
+  if(NOT ENABLE_PLUGINS)
+    return()
+  endif()
+
+  set(options)
+  set(oneValueArgs)
+  set(multiValueArgs SOURCES LINK_LIBRARIES INCLUDE_DIRECTORIES)
+  cmake_parse_arguments(GR4I_SCHED_PLUGIN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+  if(NOT GR4I_SCHED_PLUGIN_SOURCES)
+    message(FATAL_ERROR "No SOURCES passed to gr4_incubator_add_scheduler_plugin(${plugin_target})")
+  endif()
+
+  add_library(${plugin_target} MODULE ${GR4I_SCHED_PLUGIN_SOURCES})
+  target_compile_options(${plugin_target} PRIVATE -Wall)
+  target_include_directories(${plugin_target} PRIVATE ${GR4I_SCHED_PLUGIN_INCLUDE_DIRECTORIES})
+  target_link_libraries(${plugin_target}
+    PRIVATE
+      ${GR4I_GNURADIO4_TARGET}
+      ${GR4I_GNURADIO4_PLUGIN_TARGET}
+      ${GR4I_SCHED_PLUGIN_LINK_LIBRARIES}
+  )
+  install(TARGETS ${plugin_target} LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+endfunction()
