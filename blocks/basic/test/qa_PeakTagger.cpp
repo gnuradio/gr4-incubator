@@ -111,8 +111,8 @@ const boost::ut::suite<"PeakTagger graph"> ptGraphTests = [] {
         auto&     pkt = graph.emplaceBlock<gr::incubator::basic::PeakTagger<float>>();
         auto&     snk = graph.emplaceBlock<gr::incubator::basic::VectorSink<float>>();
 
-        expect(graph.connect<"out">(src).to<"in">(pkt) == gr::ConnectionResult::SUCCESS);
-        expect(graph.connect<"out">(pkt).to<"in">(snk) == gr::ConnectionResult::SUCCESS);
+        expect(graph.connect<"out", "in">(src, pkt).has_value());
+        expect(graph.connect<"out", "in">(pkt, snk).has_value());
 
         gr::scheduler::Simple sched;
         expect(sched.exchange(std::move(graph)).has_value());
@@ -131,8 +131,8 @@ const boost::ut::suite<"PeakTagger graph"> ptGraphTests = [] {
         auto&                    pkt = graph.emplaceBlock<gr::incubator::basic::PeakTagger<float>>();
         auto&                    snk = graph.emplaceBlock<gr::incubator::basic::VectorSink<float>>();
 
-        expect(graph.connect<"out">(src).to<"in">(pkt) == gr::ConnectionResult::SUCCESS);
-        expect(graph.connect<"out">(pkt).to<"in">(snk) == gr::ConnectionResult::SUCCESS);
+        expect(graph.connect<"out", "in">(src, pkt).has_value());
+        expect(graph.connect<"out", "in">(pkt, snk).has_value());
 
         gr::scheduler::Simple sched;
         expect(sched.exchange(std::move(graph)).has_value());

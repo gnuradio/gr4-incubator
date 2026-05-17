@@ -95,9 +95,9 @@ const boost::ut::suite<"EndianSwap graph"> endianSwapGraphTests = [] {
         auto& swap1 = graph.emplaceBlock<gr::incubator::basic::EndianSwap<int32_t>>();
         auto& swap2 = graph.emplaceBlock<gr::incubator::basic::EndianSwap<int32_t>>();
         auto& snk   = graph.emplaceBlock<gr::incubator::basic::VectorSink<int32_t>>();
-        expect(graph.connect<"out">(src).to<"in">(swap1) == gr::ConnectionResult::SUCCESS);
-        expect(graph.connect<"out">(swap1).to<"in">(swap2) == gr::ConnectionResult::SUCCESS);
-        expect(graph.connect<"out">(swap2).to<"in">(snk) == gr::ConnectionResult::SUCCESS);
+        expect(graph.connect<"out", "in">(src, swap1).has_value());
+        expect(graph.connect<"out", "in">(swap1, swap2).has_value());
+        expect(graph.connect<"out", "in">(swap2, snk).has_value());
 
         gr::scheduler::Simple sched;
         expect(sched.exchange(std::move(graph)).has_value());
