@@ -5,7 +5,7 @@
 
 namespace gr::incubator::basic {
 
-GR_REGISTER_BLOCK("gr::incubator::basic::StaticCast", gr::incubator::basic::StaticCast, ([ TIN, TOUT ]), [ uint8_t, int16_t, int32_t, float, double ])
+GR_REGISTER_BLOCK("gr::incubator::basic::StaticCast", gr::incubator::basic::StaticCast, ([T], [U]), [ uint8_t, int16_t, int32_t, float, double ], [ uint8_t, int16_t, int32_t, float, double ])
 
 template<typename TIN, typename TOUT>
 struct StaticCast : Block<StaticCast<TIN, TOUT>> {

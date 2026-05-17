@@ -8,8 +8,25 @@
 namespace gr::incubator::basic {
 using namespace gr;
 
+namespace dc_blocker_detail {
+template<typename T>
+struct sample_traits {
+    using scalar_type = T;
+    using sample_type = std::complex<T>;
+};
+
+template<typename T>
+struct sample_traits<std::complex<T>> {
+    using scalar_type = T;
+    using sample_type = std::complex<T>;
+};
+} // namespace dc_blocker_detail
+
 template<typename T>
 struct DCBlocker : Block<DCBlocker<T>> {
+    using Scalar = typename dc_blocker_detail::sample_traits<T>::scalar_type;
+    using Sample = typename dc_blocker_detail::sample_traits<T>::sample_type;
+
     using Description = Doc<"First-order IIR DC-blocking filter. Removes the DC component while passing all AC signals "
                             "using the high-pass difference equation: y[n] = x[n] - x[n-1] + alpha*y[n-1]. "
                             "The -3 dB cutoff is approximately f_c ~= (1-alpha)/(2*pi)*f_s; "
@@ -17,15 +34,15 @@ struct DCBlocker : Block<DCBlocker<T>> {
                             "Operates on std::complex<T> by applying the filter independently to real and imaginary parts. "
                             "Signal chain (direct-conversion receiver): ADC -> DCBlocker -> IQImbalanceCorrector -> AGC -> CostasLoop.">;
 
-    PortIn<std::complex<T>>  in;
-    PortOut<std::complex<T>> out;
+    PortIn<Sample>  in;
+    PortOut<Sample> out;
 
-    Annotated<T, "alpha", Visible, Doc<"Pole radius; closer to 1 = narrower notch, slower settling (typical: 0.99 to 0.9999)">> alpha = T(0.999);
+    Annotated<Scalar, "alpha", Visible, Doc<"Pole radius; closer to 1 = narrower notch, slower settling (typical: 0.99 to 0.9999)">> alpha = Scalar(0.999);
 
     GR_MAKE_REFLECTABLE(DCBlocker, in, out, alpha);
 
-    std::complex<T> _x_prev{T(0), T(0)};
-    std::complex<T> _y_prev{T(0), T(0)};
+    Sample _x_prev{};
+    Sample _y_prev{};
 
     void start() {
         _x_prev = {};
@@ -36,11 +53,11 @@ struct DCBlocker : Block<DCBlocker<T>> {
         _y_prev = {};
     }
 
-    [[nodiscard]] std::complex<T> processOne(std::complex<T> x) noexcept {
-        const T               a = static_cast<T>(alpha);
-        const std::complex<T> y = x - _x_prev + a * _y_prev;
-        _x_prev                 = x;
-        _y_prev                 = y;
+    [[nodiscard]] Sample processOne(Sample x) noexcept {
+        const Scalar a = static_cast<Scalar>(alpha);
+        const Sample y = x - _x_prev + a * _y_prev;
+        _x_prev        = x;
+        _y_prev        = y;
         return y;
     }
 };
