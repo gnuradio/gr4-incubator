@@ -9,8 +9,25 @@
 namespace gr::incubator::basic {
 using namespace gr;
 
+namespace agc_detail {
+template<typename T>
+struct sample_traits {
+    using scalar_type = T;
+    using sample_type = std::complex<T>;
+};
+
+template<typename T>
+struct sample_traits<std::complex<T>> {
+    using scalar_type = T;
+    using sample_type = std::complex<T>;
+};
+} // namespace agc_detail
+
 template<typename T>
 struct AGC : Block<AGC<T>> {
+    using Scalar = typename agc_detail::sample_traits<T>::scalar_type;
+    using Sample = typename agc_detail::sample_traits<T>::sample_type;
+
     using Description = Doc<"Automatic gain control (AGC). Applies a scalar gain to each input sample and updates "
                             "the gain each sample using a simple power-error feedback loop: "
                             "y = x * _gain, err = reference_power - |y|^2, _gain += rate * err, "
@@ -20,31 +37,31 @@ struct AGC : Block<AGC<T>> {
                             "Typical use: insert between the receive front-end and the matched filter so "
                             "downstream blocks (Costas loop, timing sync, demodulator) always see near-unit-amplitude symbols.">;
 
-    PortIn<std::complex<T>>  in;
-    PortOut<std::complex<T>> out;
+    PortIn<Sample>  in;
+    PortOut<Sample> out;
 
-    Annotated<T, "reference_power", Visible, Doc<"Target output power |y|² (linear)">>           reference_power = T(1);
-    Annotated<T, "rate", Visible, Doc<"Loop update rate; larger = faster but noisier tracking">> rate            = T(1e-3);
-    Annotated<T, "max_gain", Visible, Doc<"Upper gain clamp">>                                   max_gain        = T(100);
-    Annotated<T, "min_gain", Visible, Doc<"Lower gain clamp">>                                   min_gain        = T(1e-4);
+    Annotated<Scalar, "reference_power", Visible, Doc<"Target output power |y|² (linear)">>           reference_power = Scalar(1);
+    Annotated<Scalar, "rate", Visible, Doc<"Loop update rate; larger = faster but noisier tracking">> rate            = Scalar(1e-3);
+    Annotated<Scalar, "max_gain", Visible, Doc<"Upper gain clamp">>                                   max_gain        = Scalar(100);
+    Annotated<Scalar, "min_gain", Visible, Doc<"Lower gain clamp">>                                   min_gain        = Scalar(1e-4);
 
     GR_MAKE_REFLECTABLE(AGC, in, out, reference_power, rate, max_gain, min_gain);
 
-    T _gain{T(1)};
+    Scalar _gain{Scalar(1)};
 
-    void start() { _gain = T(1); }
+    void start() { _gain = Scalar(1); }
 
-    void settingsChanged(const property_map& /*old*/, const property_map& /*new*/) { _gain = T(1); }
+    void settingsChanged(const property_map& /*old*/, const property_map& /*new*/) { _gain = Scalar(1); }
 
-    [[nodiscard]] std::complex<T> processOne(std::complex<T> sample) noexcept {
-        const std::complex<T> y     = sample * _gain;
-        const T               power = y.real() * y.real() + y.imag() * y.imag();
+    [[nodiscard]] Sample processOne(Sample sample) noexcept {
+        const Sample y     = sample * _gain;
+        const Scalar power = y.real() * y.real() + y.imag() * y.imag();
         _gain += rate * (reference_power - power);
-        if (_gain < static_cast<T>(min_gain)) {
-            _gain = static_cast<T>(min_gain);
+        if (_gain < static_cast<Scalar>(min_gain)) {
+            _gain = static_cast<Scalar>(min_gain);
         }
-        if (_gain > static_cast<T>(max_gain)) {
-            _gain = static_cast<T>(max_gain);
+        if (_gain > static_cast<Scalar>(max_gain)) {
+            _gain = static_cast<Scalar>(max_gain);
         }
         return y;
     }
