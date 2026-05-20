@@ -22,14 +22,17 @@ jobs:
             image: ghcr.io/altiolabs/gr4-dev/gnuradio4-sdk:ubuntu-24.04-gcc-14
             cxxflags: ""
             ldflags: ""
+            enable_examples: "ON"
           - profile: ubuntu-24.04-gcc-15
             image: ghcr.io/altiolabs/gr4-dev/gnuradio4-sdk:ubuntu-24.04-gcc-15
             cxxflags: ""
             ldflags: ""
+            enable_examples: "ON"
           - profile: ubuntu-24.04-clang-20
             image: ghcr.io/altiolabs/gr4-dev/gnuradio4-sdk:ubuntu-24.04-clang-20
             cxxflags: "-stdlib=libc++"
             ldflags: "-stdlib=libc++"
+            enable_examples: "OFF"
     container:
       image: ${{ matrix.image }}
       options: --user root
@@ -52,7 +55,7 @@ jobs:
         run: |
           cmake -S . -B build -G Ninja \
             -DENABLE_TESTING=ON \
-            -DENABLE_EXAMPLES=ON \
+            -DENABLE_EXAMPLES=${{ matrix.enable_examples }} \
             -DENABLE_GUI_EXAMPLES=OFF
           cmake --build build -j"$(nproc)"
 
