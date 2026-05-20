@@ -320,6 +320,18 @@ function(gr4_incubator_resolve_dependencies)
       target_link_libraries(gr4_incubator_gnuradio4 INTERFACE cpr::cpr)
     endif()
 
+    # gnuradio4.pc may also omit TBB while installed static GNU Radio 4
+    # archives reference oneTBB scheduler symbols.
+    find_package(TBB CONFIG QUIET)
+    if(TARGET TBB::tbb)
+      target_link_libraries(gr4_incubator_gnuradio4 INTERFACE TBB::tbb)
+    else()
+      find_library(GR4I_TBB_LIB NAMES tbb)
+      if(GR4I_TBB_LIB)
+        target_link_libraries(gr4_incubator_gnuradio4 INTERFACE "${GR4I_TBB_LIB}")
+      endif()
+    endif()
+
     add_library(gr4_incubator::gnuradio4 ALIAS gr4_incubator_gnuradio4)
   endif()
   set(GR4I_GNURADIO4_TARGET gr4_incubator::gnuradio4 PARENT_SCOPE)
