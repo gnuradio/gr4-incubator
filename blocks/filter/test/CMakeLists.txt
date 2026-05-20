@@ -1,0 +1,2 @@
+gr4_incubator_add_ut_test(qa_FirDecimator qa_FirDecimator.cpp)
+target_link_libraries(qa_FirDecimator PRIVATE gr4_incubator::blocks_filter_headers)

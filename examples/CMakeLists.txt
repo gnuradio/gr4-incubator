@@ -7,6 +7,7 @@ set(_gr4_incubator_example_common_deps
   ${GR4I_SOAPYSDR_TARGET}
   gr4_incubator::pmt_converter
   gr4_incubator::blocks_headers
+  gr4_incubator::schedulers_headers
 )
 
 function(_gr4_incubator_suppress_soapy_ciso646_warning target_name)

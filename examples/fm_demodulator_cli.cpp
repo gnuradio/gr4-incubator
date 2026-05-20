@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <atomic>
 #include <cctype>
 #include <chrono>
@@ -23,9 +24,12 @@
 #include <gnuradio-4.0/analog/QuadratureDemod.hpp>
 #include <gnuradio-4.0/analog/FmDeemphasisFilter.hpp>
 #include <gnuradio-4.0/audio/RtAudioSink.hpp>
+#include <gnuradio-4.0/filter/FirDecimator.hpp>
 #include <gnuradio-4.0/math/Math.hpp>
+#include <gnuradio-4.0/math/Rotator.hpp>
 #include <gnuradio-4.0/pfb/PfbArbResampler.hpp>
 #include <gnuradio-4.0/pfb/PfbArbResamplerTaps.hpp>
+#include <gnuradio-4.0/scheduler/BlockingBackoff.hpp>
 #include <gnuradio-4.0/soapysdr/SoapyRx.hpp>
 
 #include <CLI/CLI.hpp>
@@ -104,7 +108,9 @@ int main(int argc, char** argv) {
 
     std::string source_type = "soapy";
     std::string filename;
+    double      rf_sample_rate = 2e6;
     double      quad_rate = 400e3;
+    double      audio_rate = 32e3;
     std::string soapy_driver = "uhd";
     std::string soapy_args;
     double      soapy_freq = 96e6;
@@ -113,23 +119,39 @@ int main(int argc, char** argv) {
     std::string soapy_antenna;
     std::size_t soapy_channel = 0;
     bool        soapy_debug = false;
+    std::optional<double> station_freq;
+    double      frequency_shift = 0.0;
+    uint32_t    channel_decim = 0;
+    double      channel_cutoff = 120e3;
+    double      channel_transition = 60e3;
+    double      channel_attenuation = 30.0;
     float       volume = 0.5f;
+    std::string audio_api = "default";
     std::size_t watchdog_timeout_ms = 0;
     std::size_t watchdog_inactive_count = 0;
 
     app.add_option("--source", source_type, "Input source: file|soapy")
         ->check(CLI::IsMember({"file", "soapy"}));
     app.add_option("-f,--file", filename, "Input file (fc32)");
-    app.add_option("-r,--rate", quad_rate, "Input sample rate (Hz)");
+    app.add_option("-r,--rate", rf_sample_rate, "RF/input sample rate (Hz)");
+    app.add_option("--quad-rate", quad_rate, "Quadrature demod input rate after channel decimation (Hz)");
+    app.add_option("--audio-rate", audio_rate, "Audio sample rate (Hz)");
     app.add_option("--soapy-driver", soapy_driver, "SoapySDR driver");
     app.add_option("--soapy-args", soapy_args, "SoapySDR device args");
     app.add_option("--soapy-freq", soapy_freq, "SoapySDR center frequency (Hz)");
+    app.add_option("--station-freq", station_freq, "FM station frequency (Hz); sets rotator shift from Soapy center");
+    app.add_option("--frequency-shift", frequency_shift, "Explicit frequency shift for file input or when --station-freq is omitted (Hz)");
     app.add_option("--soapy-bw", soapy_bw, "SoapySDR bandwidth (Hz)");
     app.add_option("--soapy-gain", soapy_gain, "SoapySDR gain (dB)");
     app.add_option("--soapy-antenna", soapy_antenna, "SoapySDR antenna name");
     app.add_option("--soapy-channel", soapy_channel, "SoapySDR RX channel index");
     app.add_flag("--soapy-debug", soapy_debug, "Enable SoapyRx debug logging");
+    app.add_option("--channel-decim", channel_decim, "RF channel decimation factor (0 = round RF rate / quad rate)");
+    app.add_option("--channel-cutoff", channel_cutoff, "FirDecimator low-pass cutoff frequency (Hz)");
+    app.add_option("--channel-transition", channel_transition, "FirDecimator transition width (Hz)");
+    app.add_option("--channel-attenuation", channel_attenuation, "FirDecimator stop-band attenuation (dB)");
     app.add_option("--volume", volume, "Audio volume scalar (0..1)");
+    app.add_option("--audio-api", audio_api, "RtAudio API: default|alsa|pulse|jack|oss|dummy");
     app.add_option("--watchdog-timeout-ms", watchdog_timeout_ms, "Scheduler watchdog timeout (ms, 0 disables)");
     app.add_option("--watchdog-inactive-count", watchdog_inactive_count, "Scheduler watchdog inactive count");
 
@@ -140,13 +162,33 @@ int main(int argc, char** argv) {
 
     Graph fg;
 
+    const auto effective_channel_decim = channel_decim == 0U
+        ? static_cast<uint32_t>(std::max(1.0, std::round(rf_sample_rate / quad_rate)))
+        : channel_decim;
+    quad_rate = rf_sample_rate / static_cast<double>(effective_channel_decim);
+    const auto effective_frequency_shift = station_freq ? soapy_freq - *station_freq : frequency_shift;
+
+    auto& rotator = fg.emplaceBlock<gr::blocks::math::Rotator<T>>(make_props({
+        {"sample_rate", gr::pmt::Value(static_cast<float>(rf_sample_rate))},
+        {"frequency_shift", gr::pmt::Value(static_cast<float>(effective_frequency_shift))},
+    }));
+
+    auto& channel_decimator = fg.emplaceBlock<gr::incubator::filter::FirDecimator<T>>(make_props({
+        {"decim", gr::pmt::Value(effective_channel_decim)},
+        {"f_low", gr::pmt::Value(static_cast<float>(channel_cutoff))},
+        {"sample_rate", gr::pmt::Value(static_cast<float>(rf_sample_rate))},
+        {"transition_width", gr::pmt::Value(static_cast<float>(channel_transition))},
+        {"num_taps", gr::pmt::Value(uint32_t{0})},
+        {"attenuation_db", gr::pmt::Value(static_cast<float>(channel_attenuation))},
+    }));
+
     auto& quad_demod = fg.emplaceBlock<gr::incubator::analog::QuadratureDemod<TR>>(
         make_props({{"gain", gr::pmt::Value(quad_rate / (2 * M_PI * 75e3))}}));
     auto& deemph_filter = fg.emplaceBlock<gr::incubator::analog::FmDeemphasisFilter<TR>>(
         make_props({{"sample_rate", gr::pmt::Value(static_cast<float>(quad_rate))}, {"tau", gr::pmt::Value(75e-6f)}}));
 
     double stop_band_attenuation = 80.0;
-    double rate = 32e3 / quad_rate;
+    double rate = audio_rate / quad_rate;
     size_t num_filters = 32;
     auto taps_vec = gr::incubator::pfb::create_taps<TR>(rate, num_filters, stop_band_attenuation);
     auto taps_val = gr::pmt::Value(gr::Tensor<TR>(gr::data_from, taps_vec));
@@ -164,9 +206,10 @@ int main(int argc, char** argv) {
         make_props({{"value", gr::pmt::Value(volume)}, {"name", gr::pmt::Value(std::string(kVolumeName))}}));
 
     auto& audio_sink = fg.emplaceBlock<gr::incubator::audio::RtAudioSink<TR>>(make_props({
-        {"sample_rate", gr::pmt::Value(32000)},
+        {"sample_rate", gr::pmt::Value(static_cast<float>(audio_rate))},
         {"channels_fallback", gr::pmt::Value(1)},
         {"device_index", gr::pmt::Value(-1)},
+        {"audio_api", gr::pmt::Value(audio_api)},
     }));
     if (source_type == "file") {
         if (filename.empty()) {
@@ -177,14 +220,14 @@ int main(int argc, char** argv) {
             {"repeat", gr::pmt::Value(true)},
             {"disconnect_on_done", gr::pmt::Value(false)},
         }));
-        if (auto conn = fg.connect<"out", "in">(source, quad_demod); !conn) {
+        if (auto conn = fg.connect<"out", "in">(source, rotator); !conn) {
             throw gr::exception(std::format("connect failed: {}", conn.error().message));
         }
     } else {
         auto& source = fg.emplaceBlock<gr::incubator::soapysdr::SoapyRx<T>>(make_props({
             {"device", gr::pmt::Value(soapy_driver)},
             {"device_args", gr::pmt::Value(soapy_args)},
-            {"sample_rate", gr::pmt::Value(static_cast<float>(quad_rate))},
+            {"sample_rate", gr::pmt::Value(static_cast<float>(rf_sample_rate))},
             {"channel", gr::pmt::Value(static_cast<gr::Size_t>(soapy_channel))},
             {"center_frequency", gr::pmt::Value(soapy_freq)},
             {"bandwidth", gr::pmt::Value(soapy_bw)},
@@ -193,11 +236,17 @@ int main(int argc, char** argv) {
             {"debug", gr::pmt::Value(soapy_debug)},
             {"name", gr::pmt::Value(std::string(kSoapyName))},
         }));
-        if (auto conn = fg.connect<"out", "in">(source, quad_demod); !conn) {
+        if (auto conn = fg.connect<"out", "in">(source, rotator); !conn) {
             throw gr::exception(std::format("connect failed: {}", conn.error().message));
         }
     }
 
+    if (auto conn = fg.connect<"out", "in">(rotator, channel_decimator); !conn) {
+        throw gr::exception(std::format("connect failed: {}", conn.error().message));
+    }
+    if (auto conn = fg.connect<"out", "in">(channel_decimator, quad_demod); !conn) {
+        throw gr::exception(std::format("connect failed: {}", conn.error().message));
+    }
     if (auto conn = fg.connect<"out", "in">(quad_demod, deemph_filter); !conn) {
         throw gr::exception(std::format("connect failed: {}", conn.error().message));
     }
@@ -211,7 +260,7 @@ int main(int argc, char** argv) {
         throw gr::exception(std::format("connect failed: {}", conn.error().message));
     }
 
-    gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::singleThreaded> sched;
+    gr::incubator::scheduler::BlockingBackoff<gr::scheduler::ExecutionPolicy::multiThreaded> sched;
     if (auto ret = sched.exchange(std::move(fg)); !ret) {
         throw std::runtime_error(std::format("failed to initialize scheduler: {}", ret.error()));
     }

@@ -6,6 +6,7 @@ endfunction()
 
 add_subdirectory(basic)
 add_subdirectory(analog)
+add_subdirectory(filter)
 add_subdirectory(pfb)
 add_subdirectory(zeromq)
 add_subdirectory(audio)
@@ -19,6 +20,7 @@ add_library(gr4_incubator::blocks_headers ALIAS gr4_incubator_blocks_headers)
 target_link_libraries(gr4_incubator_blocks_headers INTERFACE
   gr4_incubator::blocks_basic_headers
   gr4_incubator::blocks_analog_headers
+  gr4_incubator::blocks_filter_headers
   gr4_incubator::blocks_audio_headers
   gr4_incubator::blocks_sigmf_headers
   gr4_incubator::blocks_pfb_headers
