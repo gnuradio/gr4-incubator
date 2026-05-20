@@ -195,6 +195,7 @@ public:
                 _server->listen_after_bind();
             }
         });
+        _server->wait_until_ready();
         return true;
     }
 
