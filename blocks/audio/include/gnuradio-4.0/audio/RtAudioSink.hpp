@@ -1,7 +1,9 @@
 // RtAudioSink.hpp
 #pragma once
 #include <atomic>
+#include <cctype>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -56,11 +58,12 @@ struct RtAudioSink : Block<RtAudioSink<T>> {
     A<uint32_t, "channels",        Doc<"Fallback channel count if not tagged (0 = wait for tag)">, Visible> channels_fallback = 0;
     A<uint32_t, "frames_per_buf",  Doc<"RtAudio buffer size (frames)">, Visible>                      frames_per_buf = 256;
     A<int32_t,  "device_index",    Doc<"RtAudio output device index (-1 = default)">, Visible>        device_index   = -1;
+    A<std::string, "audio_api",    Doc<"RtAudio API: default, alsa, pulse, jack, oss, core, wasapi, asio, ds, dummy">, Visible> audio_api = "default";
     A<bool,     "dither",          Doc<"Enable RtAudio dither (if backend supports it)">>             dither         = false;
     A<double,   "target_latency_s",Doc<"Target FIFO latency seconds">, Visible>                        target_latency_s = 0.100;
     A<bool,     "ignore_tag_sample_rate", Doc<"Ignore sample_rate tags and use fallback sample_rate">, Visible> ignore_tag_sample_rate = false;
 
-    GR_MAKE_REFLECTABLE(RtAudioSink, in, sample_rate, channels_fallback, frames_per_buf, device_index, dither, target_latency_s, ignore_tag_sample_rate);
+    GR_MAKE_REFLECTABLE(RtAudioSink, in, sample_rate, channels_fallback, frames_per_buf, device_index, audio_api, dither, target_latency_s, ignore_tag_sample_rate);
 
     // ---- Tag keys (edit if your tag names differ) ----
     static constexpr const char* kTagNumChannels = "num_channels";
@@ -90,7 +93,7 @@ struct RtAudioSink : Block<RtAudioSink<T>> {
         }
     };
 
-    RtAudio _dac;
+    std::unique_ptr<RtAudio> _dac;
     bool    _stream_open    = false;
     bool    _stream_running = false;
 
@@ -106,6 +109,7 @@ struct RtAudioSink : Block<RtAudioSink<T>> {
     std::atomic<bool> _underflow{false};
 
     void start() {
+        _dac = std::make_unique<RtAudio>(parse_api_(audio_api.value));
         _stream_open = _stream_running = false;
         _channels = _sr = 0;
         _pending_channels = channels_fallback.value;     // fallback if tag doesn’t arrive
@@ -278,7 +282,7 @@ private:
             RtAudio::StreamParameters o{};
             o.deviceId     = (device_index.value >= 0)
                             ? (unsigned int)device_index.value
-                            : _dac.getDefaultOutputDevice();
+                            : _dac->getDefaultOutputDevice();
             o.nChannels    = _channels;
             o.firstChannel = 0;
 
@@ -292,11 +296,11 @@ private:
             // You can also set other flags if desired, e.g.:
             // opts.flags |= RTAUDIO_MINIMIZE_LATENCY;
 
-            _dac.openStream(&o, nullptr,
+            _dac->openStream(&o, nullptr,
                             RTAUDIO_FLOAT32, _sr,
                             (unsigned int*)&frames_per_buf.value,
                             &RtAudioSink::rtaudio_cb, this, &opts);
-            _dac.startStream();
+            _dac->startStream();
 
             _stream_open    = true;
             _stream_running = true;
@@ -309,12 +313,27 @@ private:
     }
 
     void close_stream() {
-        if (!_stream_open) return;
+        if (!_stream_open || !_dac) return;
         try {
-            if (_dac.isStreamRunning()) _dac.stopStream();
-            if (_dac.isStreamOpen())    _dac.closeStream();
+            if (_dac->isStreamRunning()) _dac->stopStream();
+            if (_dac->isStreamOpen())    _dac->closeStream();
         } catch (...) {}
         _stream_open = _stream_running = false;
+    }
+
+    static RtAudio::Api parse_api_(std::string api) {
+        std::ranges::transform(api, api.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (api.empty() || api == "default" || api == "unspecified") return RtAudio::UNSPECIFIED;
+        if (api == "alsa" || api == "linux_alsa") return RtAudio::LINUX_ALSA;
+        if (api == "pulse" || api == "pulseaudio" || api == "linux_pulse") return RtAudio::LINUX_PULSE;
+        if (api == "jack" || api == "unix_jack") return RtAudio::UNIX_JACK;
+        if (api == "oss" || api == "linux_oss") return RtAudio::LINUX_OSS;
+        if (api == "core" || api == "coreaudio" || api == "macosx_core") return RtAudio::MACOSX_CORE;
+        if (api == "wasapi" || api == "windows_wasapi") return RtAudio::WINDOWS_WASAPI;
+        if (api == "asio" || api == "windows_asio") return RtAudio::WINDOWS_ASIO;
+        if (api == "ds" || api == "directsound" || api == "windows_ds") return RtAudio::WINDOWS_DS;
+        if (api == "dummy" || api == "rtaudio_dummy") return RtAudio::RTAUDIO_DUMMY;
+        throw gr::exception(std::format("RtAudioSink unknown audio_api '{}'", api));
     }
 };
 
