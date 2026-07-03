@@ -126,10 +126,15 @@ public:
         } else if constexpr (std::is_same_v<T, gr::pmt::Value>) {
             for (std::size_t i = 0; i < nProcessOut; ++i) {
                 if (_transport.wait_readable(timeout)) {
-                    zmq::message_t msg;
-                    [[maybe_unused]] const bool ok = bool(_transport.socket().recv(msg));
-                    outputSpan[i] = legacy_pmt::deserialize_from_legacy(static_cast<const uint8_t*>(msg.data()), msg.size());
-                    npublished++;
+                    try {
+                        zmq::message_t msg;
+                        [[maybe_unused]] const bool ok = bool(_transport.socket().recv(msg));
+                        outputSpan[i] = legacy_pmt::deserialize_from_legacy(static_cast<const uint8_t*>(msg.data()), msg.size());
+                        npublished++;
+                    } catch (...) {
+                        outputSpan.publish(npublished);
+                        return gr::work::Status::ERROR;
+                    }
                 } else {
                     break;
                 }

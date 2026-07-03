@@ -168,8 +168,13 @@ public:
                     break;
                 }
                 _req_pending = false;
-                outputSpan[npublished] = legacy_pmt::deserialize_from_legacy(static_cast<const uint8_t*>(msg.data()), msg.size());
-                ++npublished;
+                try {
+                    outputSpan[npublished] = legacy_pmt::deserialize_from_legacy(static_cast<const uint8_t*>(msg.data()), msg.size());
+                    ++npublished;
+                } catch (...) {
+                    outputSpan.publish(npublished);
+                    return gr::work::Status::ERROR;
+                }
             }
         }
 

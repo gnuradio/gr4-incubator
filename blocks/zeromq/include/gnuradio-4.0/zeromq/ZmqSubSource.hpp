@@ -150,23 +150,28 @@ public:
                     break;
                 }
 
-                zmq::message_t msg;
-                [[maybe_unused]] const bool ok = bool(_transport.socket().recv(msg));
-                if (!ok) {
-                    break;
-                }
-
-                if (_transport.socket().get(zmq::sockopt::rcvmore)) {
-                    zmq::message_t payload;
-                    [[maybe_unused]] const bool payload_ok = bool(_transport.socket().recv(payload));
-                    if (!payload_ok) {
+                try {
+                    zmq::message_t msg;
+                    [[maybe_unused]] const bool ok = bool(_transport.socket().recv(msg));
+                    if (!ok) {
                         break;
                     }
-                    outputSpan[i] = legacy_pmt::deserialize_from_legacy(static_cast<const uint8_t*>(payload.data()), payload.size());
-                } else {
-                    outputSpan[i] = legacy_pmt::deserialize_from_legacy(static_cast<const uint8_t*>(msg.data()), msg.size());
+
+                    if (_transport.socket().get(zmq::sockopt::rcvmore)) {
+                        zmq::message_t payload;
+                        [[maybe_unused]] const bool payload_ok = bool(_transport.socket().recv(payload));
+                        if (!payload_ok) {
+                            break;
+                        }
+                        outputSpan[i] = legacy_pmt::deserialize_from_legacy(static_cast<const uint8_t*>(payload.data()), payload.size());
+                    } else {
+                        outputSpan[i] = legacy_pmt::deserialize_from_legacy(static_cast<const uint8_t*>(msg.data()), msg.size());
+                    }
+                    ++npublished;
+                } catch (...) {
+                    outputSpan.publish(npublished);
+                    return gr::work::Status::ERROR;
                 }
-                ++npublished;
             }
         }
 
