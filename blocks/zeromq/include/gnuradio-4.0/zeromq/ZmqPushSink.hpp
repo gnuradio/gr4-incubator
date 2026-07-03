@@ -1,14 +1,16 @@
 #pragma once
 
+#include "detail/ZmqCommon.hpp"
 #include "trait_helpers.hpp"
 
-#include <cerrno>
-#include <format>
+#include <algorithm>
+#include <cstring>
 #include <gnuradio-4.0/Block.hpp>
 #include <gnuradio-4.0/BlockRegistry.hpp>
 #include <gnuradio-4.0/meta/reflection.hpp>
 #include <gnuradio-4.0/algorithm/pmt_converter/pmt_legacy_codec.h>
-#include <zmq.hpp>
+#include <tuple>
+#include <vector>
 
 namespace gr::incubator::zeromq {
 
@@ -30,21 +32,30 @@ public:
     std::string    endpoint = "tcp://*:5555";
     int            timeout  = 100;
     bool           bind     = true;
-    zmq::context_t _context;
-    zmq::socket_t  _socket = {_context, zmq::socket_type::push};
+    bool           pass_tags = false;
+    int            linger   = 1000;
+    int            hwm      = -1;
 
-    GR_MAKE_REFLECTABLE(ZmqPushSink, in, endpoint, timeout, bind);
+    detail::ZmqSocketTransport _transport{zmq::socket_type::push};
+
+    GR_MAKE_REFLECTABLE(ZmqPushSink, in, endpoint, timeout, bind, pass_tags, linger, hwm);
 
     void start() {
-        if (bind) {
-            _socket.bind(endpoint);
-        } else {
-            _socket.connect(endpoint);
-        }
+        _transport.open(endpoint, bind, linger, hwm, true);
     }
 
+    [[nodiscard]] std::string last_endpoint() const { return _transport.last_endpoint(); }
 
     [[nodiscard]] constexpr work::Status processBulk(InputSpanLike auto& inData) {
+        if (inData.size() == 0) {
+            return gr::work::Status::OK;
+        }
+
+        if (!_transport.wait_writable(timeout)) {
+            return gr::work::Status::OK;
+        }
+
+        std::size_t consumed = 0;
 
         // for vectors
         // FIXME: replace with cleaner type traits - not sure yet where to put them
@@ -54,13 +65,18 @@ public:
 
                 zmq::message_t zmsg(size_in_bytes);
                 memcpy(zmsg.data(), a.data(), size_in_bytes);
-                _socket.send(zmsg, zmq::send_flags::none);
+                if (!_transport.socket().send(zmsg, zmq::send_flags::dontwait)) {
+                    break;
+                }
+                ++consumed;
             }
         } else if constexpr(is_arithmetic_or_complex_v<T>) {
             const size_t size_in_bytes = inData.size() * sizeof(T);
             zmq::message_t zmsg(size_in_bytes);
             memcpy(zmsg.data(), inData.data(), size_in_bytes);
-            _socket.send(zmsg, zmq::send_flags::none);
+            if (_transport.socket().send(zmsg, zmq::send_flags::dontwait)) {
+                consumed = inData.size();
+            }
         } else if constexpr(std::is_same_v<T, gr::pmt::Value>) {
 
             // convert to legacy pmt, serialize, and push over socket
@@ -68,11 +84,15 @@ public:
                 std::vector<uint8_t> serialized = legacy_pmt::serialize_to_legacy(pmtObj);
                 zmq::message_t zmsg(serialized.size());
                 memcpy(zmsg.data(), serialized.data(), serialized.size());
-                _socket.send(zmsg, zmq::send_flags::none);
+                if (!_transport.socket().send(zmsg, zmq::send_flags::dontwait)) {
+                    break;
+                }
+                ++consumed;
             }
             // std::cout << "tmp" << std::endl;
         }
 
+        std::ignore = inData.consume(consumed);
         return gr::work::Status::OK;
     }
 };
