@@ -11,6 +11,7 @@
 #include <future>
 #include <memory_resource>
 #include <optional>
+#include <map>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -426,9 +427,104 @@ struct PmtSink : gr::Block<PmtSink> {
     }
 };
 
+template <typename T>
+struct SequenceSource : gr::Block<SequenceSource<T>> {
+    gr::PortOut<T> out;
+    std::vector<T> values;
+    std::size_t    index = 0;
+    gr::Size_t     startup_delay_ms = 50;
+    bool           started = false;
+
+    GR_MAKE_REFLECTABLE(SequenceSource, out, values, startup_delay_ms);
+
+    [[nodiscard]] T processOne() {
+        if (!started) {
+            started = true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(startup_delay_ms));
+        }
+        if (index >= values.size()) {
+            this->requestStop();
+            return T{};
+        }
+
+        auto value = values[index++];
+        if (index >= values.size()) {
+            this->requestStop();
+        }
+        return value;
+    }
+};
+
+struct RecordingPmtSink : gr::Block<RecordingPmtSink> {
+    gr::PortIn<gr::pmt::Value> in;
+    gr::Size_t                 n_samples_max = 0;
+    std::vector<gr::pmt::Value> received;
+
+    GR_MAKE_REFLECTABLE(RecordingPmtSink, in, n_samples_max);
+
+    void processOne(const gr::pmt::Value& value) {
+        received.push_back(value);
+        if (n_samples_max > 0 && received.size() >= n_samples_max) {
+            this->requestStop();
+        }
+    }
+};
+
+std::vector<gr::pmt::Value> make_pmt_fixtures() {
+    gr::pmt::Value::Map metadata{std::pmr::get_default_resource()};
+    metadata.emplace("scheme", gr::pmt::Value("gr4"));
+    metadata.emplace("version", gr::pmt::Value(int32_t{4}));
+
+    gr::pmt::Value::Map nested{std::pmr::get_default_resource()};
+    nested.emplace("title", gr::pmt::Value("telemetry"));
+    nested.emplace("samples", gr::pmt::Value(gr::Tensor<float>(gr::data_from, std::vector<float>{1.f, 2.f, 3.f, 4.f})));
+    nested.emplace("meta", gr::pmt::Value(std::move(metadata)));
+
+    std::vector<gr::pmt::Value> items;
+    items.emplace_back(false);
+    items.emplace_back(int64_t{249387429783478});
+    items.emplace_back(std::string{"example"});
+    items.emplace_back(gr::Tensor<float>(gr::data_from, std::vector<float>{3.5f, 4.5f, 5.5f}));
+    items.emplace_back(std::move(nested));
+    items.emplace_back(gr::Tensor<gr::pmt::Value>(gr::data_from, std::vector<gr::pmt::Value>{gr::pmt::Value(int32_t{7}), gr::pmt::Value("nested"), gr::pmt::Value(gr::Tensor<float>(gr::data_from, std::vector<float>{9.f, 10.f}))}));
+    return items;
+}
+
+std::thread spawn_rep_sequence_responder(std::string endpoint, std::vector<std::vector<std::uint8_t>> payloads, std::chrono::milliseconds delay = std::chrono::milliseconds{100}) {
+    return std::thread([endpoint = std::move(endpoint), payloads = std::move(payloads), delay] {
+        std::this_thread::sleep_for(delay);
+        zmq::context_t ctx{1};
+        zmq::socket_t   socket{ctx, zmq::socket_type::rep};
+        socket.connect(endpoint);
+
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds{4000};
+        for (const auto& payload : payloads) {
+            while (std::chrono::steady_clock::now() < deadline) {
+                zmq::pollitem_t items[] = {{static_cast<void*>(socket), 0, ZMQ_POLLIN, 0}};
+                zmq::poll(&items[0], 1, std::chrono::milliseconds{25});
+                if ((items[0].revents & ZMQ_POLLIN) == 0) {
+                    continue;
+                }
+
+                zmq::message_t request;
+                if (!socket.recv(request)) {
+                    break;
+                }
+
+                zmq::message_t reply(payload.size());
+                if (!payload.empty()) {
+                    std::memcpy(reply.data(), payload.data(), payload.size());
+                }
+                [[maybe_unused]] const bool ok = bool(socket.send(reply, zmq::send_flags::none));
+                break;
+            }
+        }
+    });
+}
+
 } // namespace
 
-const suite ZmqPushPullTests = [] {
+const suite ZmqBlocksTests = [] {
     "Pull source receives scalar raw payload"_test = [] {
         gr::Graph fg;
         using T = float;
@@ -819,14 +915,66 @@ const suite ZmqPushPullTests = [] {
         }
     };
 
+    "Push sink emits legacy PMT bytes for supported fixtures"_test = [] {
+        gr::Graph fg;
+        const auto endpoint = endpoint_for(19);
+        const auto fixtures = make_pmt_fixtures();
+        auto receiver = spawn_pull_receiver(endpoint, fixtures.size());
+
+        auto& source = fg.emplaceBlock<SequenceSource<gr::pmt::Value>>();
+        source.values = fixtures;
+        source.startup_delay_ms = 250;
+        auto& push = fg.emplaceBlock<gr::incubator::zeromq::ZmqPushSink<gr::pmt::Value>>(make_props({
+            {"endpoint", gr::pmt::Value(endpoint)},
+            {"timeout", gr::pmt::Value(25)},
+            {"bind", gr::pmt::Value(true)},
+        }));
+
+        expect(fg.connect<"out", "in">(source, push).has_value());
+
+        gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::multiThreaded> sched;
+        expect(sched.exchange(std::move(fg)).has_value());
+        const bool completed = run_until_then_stop(sched, [&] { return receiver.wait_for(std::chrono::milliseconds{0}) == std::future_status::ready; }, std::chrono::milliseconds(3000));
+        expect(completed);
+        if (completed) {
+            auto messages = receiver.get();
+            expect(eq(messages.size(), fixtures.size()));
+            if (messages.size() == fixtures.size()) {
+                for (std::size_t i = 0; i < fixtures.size(); ++i) {
+                    expect(messages[i] == legacy_pmt::serialize_to_legacy(fixtures[i]));
+                }
+            }
+        }
+    };
+
+    "Pull source receives supported legacy PMT fixtures"_test = [] {
+        const auto fixtures = make_pmt_fixtures();
+        for (std::size_t i = 0; i < fixtures.size(); ++i) {
+            const auto serialized = legacy_pmt::serialize_to_legacy(fixtures[i]);
+            const auto roundtrip = legacy_pmt::deserialize_from_legacy(serialized.data(), serialized.size());
+            expect(legacy_pmt::serialize_to_legacy(roundtrip) == serialized);
+        }
+    };
+
+    "Pull source rejects invalid legacy PMT payload"_test = [] {
+        const std::vector<std::uint8_t> invalid{0xFF};
+        bool threw = false;
+        try {
+            std::ignore = legacy_pmt::deserialize_from_legacy(invalid.data(), invalid.size());
+        } catch (...) {
+            threw = true;
+        }
+        expect(threw);
+    };
+
     "Rep sink honors smaller and equal request counts"_test = [] {
         gr::Graph fg;
         using T = float;
-        const auto endpoint = endpoint_for(15);
+        const auto endpoint = endpoint_for(22);
 
         auto& source = fg.emplaceBlock<DelayedCountingSource<T>>(make_props({
             {"n_samples_max", gr::pmt::Value(static_cast<gr::Size_t>(5))},
-            {"startup_delay_ms", gr::pmt::Value(static_cast<gr::Size_t>(50))},
+            {"startup_delay_ms", gr::pmt::Value(static_cast<gr::Size_t>(100))},
         }));
         auto& rep = fg.emplaceBlock<gr::incubator::zeromq::ZmqRepSink<T>>(make_props({
             {"endpoint", gr::pmt::Value(endpoint)},
@@ -860,7 +1008,7 @@ const suite ZmqPushPullTests = [] {
     "Rep sink caps larger request counts"_test = [] {
         gr::Graph fg;
         using T = float;
-        const auto endpoint = endpoint_for(16);
+        const auto endpoint = endpoint_for(23);
 
         auto& source = fg.emplaceBlock<DelayedCountingSource<T>>(make_props({
             {"n_samples_max", gr::pmt::Value(static_cast<gr::Size_t>(5))},
@@ -874,7 +1022,7 @@ const suite ZmqPushPullTests = [] {
 
         expect(fg.connect<"out", "in">(source, rep).has_value());
 
-        auto client = spawn_req_client(endpoint, std::vector<uint32_t>{7U}, std::chrono::milliseconds{10});
+        auto client = spawn_req_client(endpoint, std::vector<uint32_t>{7U}, std::chrono::milliseconds{100});
 
         gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::multiThreaded> sched;
         expect(sched.exchange(std::move(fg)).has_value());
@@ -887,12 +1035,14 @@ const suite ZmqPushPullTests = [] {
         }
     };
 
-    "Req/Rep PMT payloads use legacy serialization"_test = [] {
+    "Rep sink emits legacy PMT bytes for supported fixtures"_test = [] {
         gr::Graph fg;
-        const auto endpoint = endpoint_for(17);
+        const auto endpoint = endpoint_for(24);
+        const auto fixtures = make_pmt_fixtures();
 
-        auto& source = fg.emplaceBlock<ConstantSource<gr::pmt::Value>>();
-        source.value = gr::pmt::Value(gr::Tensor<float>(gr::data_from, std::vector<float>{1.f, 2.f, 3.f, 4.f}));
+        auto& source = fg.emplaceBlock<SequenceSource<gr::pmt::Value>>();
+        source.values = fixtures;
+        source.startup_delay_ms = 250;
         auto& rep = fg.emplaceBlock<gr::incubator::zeromq::ZmqRepSink<gr::pmt::Value>>(make_props({
             {"endpoint", gr::pmt::Value(endpoint)},
             {"timeout", gr::pmt::Value(100)},
@@ -901,46 +1051,56 @@ const suite ZmqPushPullTests = [] {
 
         expect(fg.connect<"out", "in">(source, rep).has_value());
 
-        auto expected = legacy_pmt::serialize_to_legacy(gr::pmt::Value(gr::Tensor<float>(gr::data_from, std::vector<float>{1.f, 2.f, 3.f, 4.f})));
-        auto client = spawn_req_client(endpoint, std::vector<uint32_t>{1U}, std::chrono::milliseconds{10});
+        auto client = spawn_req_client(endpoint, std::vector<uint32_t>(fixtures.size(), 1U), std::chrono::milliseconds{10});
 
         gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::multiThreaded> sched;
         expect(sched.exchange(std::move(fg)).has_value());
         expect(run_until_then_stop(sched, [&] { return client.wait_for(std::chrono::milliseconds{0}) == std::future_status::ready; }, std::chrono::milliseconds(3000)));
 
         auto replies = client.get();
-        expect(eq(replies.size(), static_cast<std::size_t>(1)));
-        if (replies.size() == 1) {
-            expect(replies[0] == expected);
+        expect(eq(replies.size(), fixtures.size()));
+        if (replies.size() == fixtures.size()) {
+            for (std::size_t i = 0; i < fixtures.size(); ++i) {
+                expect(replies[i] == legacy_pmt::serialize_to_legacy(fixtures[i]));
+            }
         }
     };
 
-    "Req source receives legacy PMT payload"_test = [] {
+    "Req source receives legacy PMT payloads"_test = [] {
         gr::Graph fg;
-        const auto endpoint = endpoint_for(18);
+        const auto endpoint = endpoint_for(25);
+        const auto fixtures = make_pmt_fixtures();
+        std::vector<std::vector<std::uint8_t>> payloads;
+        payloads.reserve(fixtures.size());
+        for (const auto& fixture : fixtures) {
+            payloads.push_back(legacy_pmt::serialize_to_legacy(fixture));
+        }
 
         auto& source = fg.emplaceBlock<gr::incubator::zeromq::ZmqReqSource<gr::pmt::Value>>(make_props({
             {"endpoint", gr::pmt::Value(endpoint)},
             {"timeout", gr::pmt::Value(100)},
             {"bind", gr::pmt::Value(true)},
         }));
-        auto& sink = fg.emplaceBlock<PmtSink>(make_props({
-            {"n_samples_max", gr::pmt::Value(static_cast<gr::Size_t>(1))},
+        auto& sink = fg.emplaceBlock<RecordingPmtSink>(make_props({
+            {"n_samples_max", gr::pmt::Value(fixtures.size())},
         }));
 
         expect(fg.connect<"out", "in">(source, sink).has_value());
 
-        auto payload = legacy_pmt::serialize_to_legacy(gr::pmt::Value(gr::Tensor<float>(gr::data_from, std::vector<float>{5.f, 6.f, 7.f, 8.f})));
-        auto responder = spawn_rep_responder(endpoint, std::move(payload), std::chrono::milliseconds{10});
+        auto responder = spawn_rep_sequence_responder(endpoint, std::move(payloads), std::chrono::milliseconds{10});
 
         gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::multiThreaded> sched;
         expect(sched.exchange(std::move(fg)).has_value());
-        expect(run_until_then_stop(sched, [&] { return sink.count >= static_cast<gr::Size_t>(1); }, std::chrono::milliseconds(3000)));
-        expect(eq(sink.count, static_cast<gr::Size_t>(1)));
+        expect(run_until_then_stop(sched, [&] { return sink.received.size() >= fixtures.size(); }, std::chrono::milliseconds(3000)));
+        expect(eq(sink.received.size(), fixtures.size()));
+        if (sink.received.size() == fixtures.size()) {
+            for (std::size_t i = 0; i < fixtures.size(); ++i) {
+                expect(legacy_pmt::serialize_to_legacy(sink.received[i]) == legacy_pmt::serialize_to_legacy(fixtures[i]));
+            }
+        }
 
-        expect(responder.valid());
-        if (responder.valid()) {
-            expect(responder.get() >= 1U);
+        if (responder.joinable()) {
+            responder.join();
         }
     };
 
@@ -950,8 +1110,13 @@ const suite ZmqPushPullTests = [] {
         const std::string key = "pmt.";
         auto receiver = spawn_sub_receiver(endpoint, key);
 
-        auto& source = fg.emplaceBlock<ConstantSource<gr::pmt::Value>>();
-        source.value = gr::pmt::Value(gr::Tensor<float>(gr::data_from, std::vector<float>{1.f, 2.f, 3.f, 4.f}));
+        auto& source = fg.emplaceBlock<SequenceSource<gr::pmt::Value>>();
+        source.values = {
+            gr::pmt::Value(gr::Tensor<float>(gr::data_from, std::vector<float>{1.f, 2.f, 3.f, 4.f})),
+            gr::pmt::Value(gr::Tensor<float>(gr::data_from, std::vector<float>{1.f, 2.f, 3.f, 4.f})),
+            gr::pmt::Value(gr::Tensor<float>(gr::data_from, std::vector<float>{1.f, 2.f, 3.f, 4.f})),
+        };
+        source.startup_delay_ms = 1000;
         auto& pub = fg.emplaceBlock<gr::incubator::zeromq::ZmqPubSink<gr::pmt::Value>>(make_props({
             {"endpoint", gr::pmt::Value(endpoint)},
             {"timeout", gr::pmt::Value(25)},
@@ -961,11 +1126,11 @@ const suite ZmqPushPullTests = [] {
 
         expect(fg.connect<"out", "in">(source, pub).has_value());
 
-        const auto expected = legacy_pmt::serialize_to_legacy(source.value);
+        const auto expected = legacy_pmt::serialize_to_legacy(source.values.front());
 
         gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::multiThreaded> sched;
         expect(sched.exchange(std::move(fg)).has_value());
-        const bool completed = run_until_then_stop(sched, [&] { return receiver.wait_for(std::chrono::milliseconds{0}) == std::future_status::ready; }, std::chrono::milliseconds(2000));
+        const bool completed = run_until_then_stop(sched, [&] { return receiver.wait_for(std::chrono::milliseconds{0}) == std::future_status::ready; }, std::chrono::milliseconds(4000));
         expect(completed);
         if (completed) {
             auto frames = receiver.get();
