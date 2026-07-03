@@ -1,5 +1,7 @@
 include_guard(GLOBAL)
 
+include(FetchContent)
+
 find_package(PkgConfig REQUIRED)
 
 function(_gr4_incubator_sanitize_pkg_target imported_target module_name)
@@ -94,27 +96,41 @@ function(_gr4_incubator_find_soapysdr out_target)
 endfunction()
 
 function(_gr4_incubator_find_boost_ut out_target)
-  find_package(boost_ut CONFIG QUIET)
-  if(TARGET boost_ut::ut)
-    set(${out_target} boost_ut::ut PARENT_SCOPE)
-    return()
+  set(BOOST_UT_DISABLE_MODULE
+    ON
+    CACHE BOOL "Disable UT Module Support" FORCE)
+  add_compile_definitions(BOOST_UT_DISABLE_MODULE)
+
+  if(EMSCRIPTEN OR GR_USE_FETCHCONTENT_DEPS)
+    FetchContent_Declare(
+      ut
+      GIT_REPOSITORY https://github.com/boost-ext/ut.git
+      GIT_TAG 53e17f25119598c6458d30351b260193096ba67e
+      EXCLUDE_FROM_ALL)
+  else()
+    find_package(ut CONFIG QUIET)
+    if(TARGET Boost::ut AND NOT TARGET ut)
+      add_library(ut ALIAS Boost::ut)
+    elseif(TARGET boost::ut AND NOT TARGET ut)
+      add_library(ut ALIAS boost::ut)
+    endif()
+    if(NOT TARGET ut)
+      find_path(GR_BOOST_UT_INCLUDE_DIR boost/ut.hpp)
+      if(NOT GR_BOOST_UT_INCLUDE_DIR)
+        message(FATAL_ERROR "Boost.UT was not found. Install libboost-ext-ut-dev, ut-devel, or a source-built Boost.UT.")
+      endif()
+      add_library(ut INTERFACE)
+      target_include_directories(ut INTERFACE ${GR_BOOST_UT_INCLUDE_DIR})
+    endif()
   endif()
-  if(TARGET Boost::ut)
-    set(${out_target} Boost::ut PARENT_SCOPE)
-    return()
+  if(EMSCRIPTEN OR GR_USE_FETCHCONTENT_DEPS)
+    FetchContent_MakeAvailable(ut)
+  endif()
+  if(NOT TARGET Boost::ut AND TARGET ut)
+    add_library(Boost::ut ALIAS ut)
   endif()
 
-  find_path(_boost_ut_include boost/ut.hpp
-    PATH_SUFFIXES boost-ut/include include
-  )
-  if(NOT _boost_ut_include)
-    message(FATAL_ERROR "boost-ut headers not found. Install system boost-ut (providing boost/ut.hpp).")
-  endif()
-
-  add_library(gr4_incubator_boost_ut INTERFACE)
-  target_include_directories(gr4_incubator_boost_ut INTERFACE "${_boost_ut_include}")
-  add_library(gr4_incubator::boost_ut ALIAS gr4_incubator_boost_ut)
-  set(${out_target} gr4_incubator::boost_ut PARENT_SCOPE)
+  set(${out_target} Boost::ut PARENT_SCOPE)
 endfunction()
 
 function(_gr4_incubator_find_nlohmann_json out_target)
