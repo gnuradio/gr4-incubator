@@ -1,11 +1,14 @@
 #pragma once
 
-#include <cerrno>
+#include "detail/ZmqCommon.hpp"
+#include <algorithm>
+#include <chrono>
+#include <cstring>
 #include <gnuradio-4.0/Block.hpp>
 #include <gnuradio-4.0/meta/reflection.hpp>
 #include "trait_helpers.hpp"
-#include <zmq.hpp>
 #include <gnuradio-4.0/algorithm/pmt_converter/pmt_legacy_codec.h>
+#include <vector>
 
 
 namespace gr::incubator::zeromq {
@@ -29,35 +32,37 @@ public:
     std::string    endpoint = "tcp://*:5555";
     int            timeout  = 100;
     bool           bind     = false;
-    zmq::context_t _context;
-    zmq::socket_t  _socket = {_context, zmq::socket_type::pull};
+    bool           pass_tags = false;
+    int            linger   = 1000;
+    int            hwm      = -1;
+
+    detail::ZmqSocketTransport _transport{zmq::socket_type::pull};
 
     [[maybe_unused]] std::vector<T> _pending_items;
 
-    GR_MAKE_REFLECTABLE(ZmqPullSource, out, endpoint, timeout, bind);
+    GR_MAKE_REFLECTABLE(ZmqPullSource, out, endpoint, timeout, bind, pass_tags, linger, hwm);
 
     void start() {
-        if (bind) {
-            _socket.bind(endpoint);
-        } else {
-            _socket.connect(endpoint);
-        }
+        _transport.open(endpoint, bind, linger, hwm, false);
     }
 
-    [[nodiscard]] work::Status processBulk(OutputSpanLike auto& outputSpan) noexcept {
+    [[nodiscard]] std::string last_endpoint() const { return _transport.last_endpoint(); }
+
+    [[nodiscard]] work::Status processBulk(OutputSpanLike auto& outputSpan) {
         const std::size_t nProcessOut = outputSpan.size();
 
         size_t npublished = 0;
 
         if constexpr (is_vector_of_arithmetic_or_complex_v<T>) {
             for (std::size_t i = 0; i < nProcessOut; ++i) {
-                zmq::pollitem_t items[] = {{static_cast<void*>(_socket), 0, ZMQ_POLLIN, 0}};
-                zmq::poll(&items[0], 1, std::chrono::milliseconds{timeout});
-
-                if (items[0].revents & ZMQ_POLLIN) {
+                if (_transport.wait_readable(timeout)) {
                     // Receive data
                     zmq::message_t              msg;
-                    [[maybe_unused]] const bool ok = bool(_socket.recv(msg));
+                    [[maybe_unused]] const bool ok = bool(_transport.socket().recv(msg));
+                    if (!detail::ZmqSocketTransport::is_multiple_of(msg.size(), sizeof(typename T::value_type))) {
+                        outputSpan.publish(npublished);
+                        return gr::work::Status::ERROR;
+                    }
 
                     auto&  vec  = outputSpan[i];
                     size_t nels = msg.size() / sizeof(typename T::value_type);
@@ -88,17 +93,14 @@ public:
                 if (!room_in_span) {
                     break;
                 }
-                // std::cout << "2 nProcessOut: " << nProcessOut << " npublished: " << npublished << " room_in_span: " << room_in_span << std::endl;
-                // std::cout << "2 _pending_items: " << _pending_items.size() << std::endl;
-
-
-                zmq::pollitem_t items[] = {{static_cast<void*>(_socket), 0, ZMQ_POLLIN, 0}};
-                zmq::poll(&items[0], 1, std::chrono::milliseconds{timeout});
-
-                if (items[0].revents & ZMQ_POLLIN) {
+                if (_transport.wait_readable(timeout)) {
                     // Receive data
                     zmq::message_t              msg;
-                    [[maybe_unused]] const bool ok = bool(_socket.recv(msg));
+                    [[maybe_unused]] const bool ok = bool(_transport.socket().recv(msg));
+                    if (!detail::ZmqSocketTransport::is_multiple_of(msg.size(), sizeof(T))) {
+                        outputSpan.publish(npublished);
+                        return gr::work::Status::ERROR;
+                    }
 
                     auto&  vec  = outputSpan;
                     size_t nels = msg.size() / sizeof(T);
@@ -123,12 +125,9 @@ public:
             }
         } else if constexpr (std::is_same_v<T, gr::pmt::Value>) {
             for (std::size_t i = 0; i < nProcessOut; ++i) {
-                zmq::pollitem_t items[] = {{static_cast<void*>(_socket), 0, ZMQ_POLLIN, 0}};
-                zmq::poll(&items[0], 1, std::chrono::milliseconds{timeout});
-
-                if (items[0].revents & ZMQ_POLLIN) {
+                if (_transport.wait_readable(timeout)) {
                     zmq::message_t msg;
-                    [[maybe_unused]] const bool ok = bool(_socket.recv(msg));
+                    [[maybe_unused]] const bool ok = bool(_transport.socket().recv(msg));
                     outputSpan[i] = legacy_pmt::deserialize_from_legacy(static_cast<const uint8_t*>(msg.data()), msg.size());
                     npublished++;
                 } else {
