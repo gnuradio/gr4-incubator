@@ -721,4 +721,8 @@ gr::pmt::Value deserialize_from_legacy(const uint8_t* data, size_t size) {
     return deserialize_value(ptr, end);
 }
 
+gr::pmt::Value deserialize_from_legacy(const uint8_t*& data, const uint8_t* end) {
+    return deserialize_value(data, end);
+}
+
 } // namespace legacy_pmt
