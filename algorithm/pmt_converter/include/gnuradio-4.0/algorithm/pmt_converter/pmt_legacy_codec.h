@@ -18,4 +18,10 @@ std::vector<uint8_t> serialize_to_legacy(const gr::pmt::Value& obj);
  */
 gr::pmt::Value deserialize_from_legacy(const uint8_t* data, size_t size);
 
+/**
+ * Deserialize a single legacy GNU Radio PMT object from a cursor and advance it.
+ * Throws std::runtime_error if the object is malformed or truncated.
+ */
+gr::pmt::Value deserialize_from_legacy(const uint8_t*& data, const uint8_t* end);
+
 } // namespace legacy_pmt

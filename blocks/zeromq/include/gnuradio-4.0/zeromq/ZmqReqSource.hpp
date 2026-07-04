@@ -1,6 +1,7 @@
 #pragma once
 
 #include "detail/ZmqCommon.hpp"
+#include "detail/ZmqTagHeaders.hpp"
 #include "trait_helpers.hpp"
 
 #include <algorithm>
@@ -38,8 +39,9 @@ public:
 
     detail::ZmqSocketTransport _transport{zmq::socket_type::req};
 
-    [[maybe_unused]] std::vector<T> _pending_items;
-    bool                            _req_pending = false;
+    [[maybe_unused]] std::vector<T>                            _pending_items;
+    [[maybe_unused]] std::vector<detail::ZmqTagHeaderRecord> _pending_tags;
+    bool                                                      _req_pending = false;
 
     GR_MAKE_REFLECTABLE(ZmqReqSource, out, endpoint, timeout, bind, pass_tags, linger, hwm);
 
@@ -61,11 +63,26 @@ public:
         const std::size_t nProcessOut = outputSpan.size();
         std::size_t       npublished  = 0;
 
+        auto publish_pending_tags = [&outputSpan](std::size_t base_offset, std::size_t consumed, std::vector<detail::ZmqTagHeaderRecord>& tags) {
+            std::vector<detail::ZmqTagHeaderRecord> remaining;
+            remaining.reserve(tags.size());
+            for (auto& tag : tags) {
+                if (tag.offset < consumed) {
+                    outputSpan.publishTag(detail::tag_map_from_record(tag), base_offset + static_cast<std::size_t>(tag.offset));
+                } else {
+                    tag.offset -= consumed;
+                    remaining.push_back(std::move(tag));
+                }
+            }
+            tags = std::move(remaining);
+        };
+
         if constexpr (is_arithmetic_or_complex_v<T>) {
             while (true) {
                 if (!_pending_items.empty()) {
                     const auto n = std::min(nProcessOut - npublished, _pending_items.size());
                     std::copy(_pending_items.begin(), _pending_items.begin() + static_cast<std::ptrdiff_t>(n), outputSpan.begin() + npublished);
+                    publish_pending_tags(npublished, n, _pending_tags);
                     npublished += n;
                     _pending_items.erase(_pending_items.begin(), _pending_items.begin() + static_cast<std::ptrdiff_t>(n));
                 }
@@ -98,15 +115,34 @@ public:
                 }
                 _req_pending = false;
 
-                detail::ZmqSocketTransport::require_multiple_of(msg.size(), sizeof(T), "ZmqReqSource scalar payload");
-                const std::size_t nels = msg.size() / sizeof(T);
+                std::uint64_t header_offset = 0;
+                std::vector<detail::ZmqTagHeaderRecord> tags;
+                std::size_t consumed_bytes = 0;
+                if (pass_tags) {
+                    consumed_bytes = detail::parse_tag_header(static_cast<const std::uint8_t*>(msg.data()), msg.size(), header_offset, tags);
+                    for (auto& tag : tags) {
+                        if (tag.offset >= header_offset) {
+                            tag.offset -= header_offset;
+                        }
+                    }
+                }
+                const auto payload_size = msg.size() - consumed_bytes;
+                detail::ZmqSocketTransport::require_multiple_of(payload_size, sizeof(T), "ZmqReqSource scalar payload");
+                const std::size_t nels = payload_size / sizeof(T);
                 const std::size_t n    = std::min(nels, nProcessOut - npublished);
-                std::copy(static_cast<T*>(msg.data()), static_cast<T*>(msg.data()) + static_cast<std::ptrdiff_t>(n), outputSpan.begin() + npublished);
+                const auto* payload = static_cast<const std::uint8_t*>(msg.data()) + consumed_bytes;
+                const auto* typed_payload = reinterpret_cast<const T*>(payload);
+                std::copy(typed_payload, typed_payload + static_cast<std::ptrdiff_t>(n), outputSpan.begin() + npublished);
+                publish_pending_tags(npublished, n, _pending_tags);
+                publish_pending_tags(npublished, n, tags);
                 npublished += n;
 
                 if (nels > n) {
                     _pending_items.resize(nels - n);
-                    std::copy(static_cast<T*>(msg.data()) + static_cast<std::ptrdiff_t>(n), static_cast<T*>(msg.data()) + static_cast<std::ptrdiff_t>(nels), _pending_items.begin());
+                    std::copy(typed_payload + static_cast<std::ptrdiff_t>(n),
+                              typed_payload + static_cast<std::ptrdiff_t>(nels),
+                              _pending_items.begin());
+                    _pending_tags = std::move(tags);
                     break;
                 }
             }
@@ -136,11 +172,32 @@ public:
                 }
                 _req_pending = false;
 
-                detail::ZmqSocketTransport::require_multiple_of(msg.size(), sizeof(typename T::value_type), "ZmqReqSource vector payload");
                 auto& vec = outputSpan[npublished];
-                const std::size_t nels = msg.size() / sizeof(typename T::value_type);
+                std::uint64_t header_offset = 0;
+                std::vector<detail::ZmqTagHeaderRecord> tags;
+                std::size_t consumed_bytes = 0;
+                if (pass_tags) {
+                    consumed_bytes = detail::parse_tag_header(static_cast<const std::uint8_t*>(msg.data()), msg.size(), header_offset, tags);
+                    for (auto& tag : tags) {
+                        if (tag.offset >= header_offset) {
+                            tag.offset -= header_offset;
+                        }
+                    }
+                }
+                const auto payload_size = msg.size() - consumed_bytes;
+                detail::ZmqSocketTransport::require_multiple_of(payload_size, sizeof(typename T::value_type), "ZmqReqSource vector payload");
+                const auto* payload = static_cast<const std::uint8_t*>(msg.data()) + consumed_bytes;
+                const std::size_t nels = payload_size / sizeof(typename T::value_type);
                 vec.resize(nels);
-                std::copy(static_cast<typename T::value_type*>(msg.data()), static_cast<typename T::value_type*>(msg.data()) + static_cast<std::ptrdiff_t>(nels), vec.begin());
+                const auto* typed_payload = reinterpret_cast<const typename T::value_type*>(payload);
+                std::copy(typed_payload,
+                          typed_payload + static_cast<std::ptrdiff_t>(nels),
+                          vec.begin());
+                if (pass_tags) {
+                    for (const auto& tag : tags) {
+                        outputSpan.publishTag(detail::tag_map_from_record(tag), npublished);
+                    }
+                }
                 ++npublished;
             }
         } else if constexpr (std::is_same_v<T, gr::pmt::Value>) {
@@ -169,7 +226,23 @@ public:
                 }
                 _req_pending = false;
                 try {
-                    outputSpan[npublished] = legacy_pmt::deserialize_from_legacy(static_cast<const uint8_t*>(msg.data()), msg.size());
+                    std::uint64_t header_offset = 0;
+                    std::vector<detail::ZmqTagHeaderRecord> tags;
+                    std::size_t consumed_bytes = 0;
+                    if (pass_tags) {
+                        consumed_bytes = detail::parse_tag_header(static_cast<const std::uint8_t*>(msg.data()), msg.size(), header_offset, tags);
+                        for (auto& tag : tags) {
+                            if (tag.offset >= header_offset) {
+                                tag.offset -= header_offset;
+                            }
+                        }
+                    }
+                    outputSpan[npublished] = legacy_pmt::deserialize_from_legacy(static_cast<const uint8_t*>(msg.data()) + consumed_bytes, msg.size() - consumed_bytes);
+                    if (pass_tags) {
+                        for (const auto& tag : tags) {
+                            outputSpan.publishTag(detail::tag_map_from_record(tag), npublished);
+                        }
+                    }
                     ++npublished;
                 } catch (...) {
                     outputSpan.publish(npublished);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "detail/ZmqCommon.hpp"
+#include "detail/ZmqTagHeaders.hpp"
 #include "trait_helpers.hpp"
 
 #include <algorithm>
@@ -37,7 +38,8 @@ public:
 
     detail::ZmqSocketTransport _transport{zmq::socket_type::rep};
 
-    [[maybe_unused]] std::vector<T> _pending_items;
+    [[maybe_unused]] std::vector<T>                            _pending_items;
+    [[maybe_unused]] std::vector<detail::ZmqTagHeaderRecord> _pending_tags;
 
     GR_MAKE_REFLECTABLE(ZmqRepSink, in, endpoint, timeout, bind, pass_tags, linger, hwm);
 
@@ -64,8 +66,36 @@ public:
             const auto old_size = _pending_items.size();
             _pending_items.resize(old_size + inData.size());
             std::copy(inData.begin(), inData.end(), _pending_items.begin() + static_cast<std::ptrdiff_t>(old_size));
+            if (pass_tags) {
+                for (const auto& [relIndex, tagMapRef] : inData.tags()) {
+                    if (relIndex < 0) {
+                        continue;
+                    }
+                    auto rec = detail::tag_record_from_property_map(tagMapRef.get());
+                    if (!rec.has_value()) {
+                        continue;
+                    }
+                    rec->offset = old_size + static_cast<std::uint64_t>(relIndex);
+                    _pending_tags.push_back(std::move(*rec));
+                }
+            }
             std::ignore = inData.consume(inData.size());
         }
+
+        auto take_tags = [&](std::size_t nsend) {
+            std::vector<detail::ZmqTagHeaderRecord> sent_tags;
+            std::vector<detail::ZmqTagHeaderRecord> remaining;
+            for (auto& tag : _pending_tags) {
+                if (tag.offset < nsend) {
+                    sent_tags.push_back(tag);
+                } else {
+                    tag.offset -= nsend;
+                    remaining.push_back(std::move(tag));
+                }
+            }
+            _pending_tags = std::move(remaining);
+            return sent_tags;
+        };
 
         if constexpr (is_arithmetic_or_complex_v<T>) {
             while (!_pending_items.empty()) {
@@ -84,8 +114,13 @@ public:
                     break;
                 }
 
-                zmq::message_t reply(nsend * sizeof(T));
-                std::memcpy(reply.data(), _pending_items.data(), nsend * sizeof(T));
+                const auto tags = pass_tags ? take_tags(nsend) : std::vector<detail::ZmqTagHeaderRecord>{};
+                const auto header = pass_tags ? detail::serialize_tag_header(0, tags) : std::vector<std::uint8_t>{};
+                zmq::message_t reply(header.size() + nsend * sizeof(T));
+                if (!header.empty()) {
+                    std::memcpy(reply.data(), header.data(), header.size());
+                }
+                std::memcpy(static_cast<std::uint8_t*>(reply.data()) + header.size(), _pending_items.data(), nsend * sizeof(T));
                 if (!bool(_transport.socket().send(reply, zmq::send_flags::dontwait))) {
                     break;
                 }
@@ -103,9 +138,14 @@ public:
                 }
 
                 auto& vec = _pending_items.front();
-                zmq::message_t reply(vec.size() * sizeof(typename T::value_type));
+                const auto tags = pass_tags ? take_tags(1) : std::vector<detail::ZmqTagHeaderRecord>{};
+                const auto header = pass_tags ? detail::serialize_tag_header(0, tags) : std::vector<std::uint8_t>{};
+                zmq::message_t reply(header.size() + vec.size() * sizeof(typename T::value_type));
+                if (!header.empty()) {
+                    std::memcpy(reply.data(), header.data(), header.size());
+                }
                 if (!vec.empty()) {
-                    std::memcpy(reply.data(), vec.data(), reply.size());
+                    std::memcpy(static_cast<std::uint8_t*>(reply.data()) + header.size(), vec.data(), vec.size() * sizeof(typename T::value_type));
                 }
                 if (!bool(_transport.socket().send(reply, zmq::send_flags::dontwait))) {
                     break;
@@ -123,10 +163,15 @@ public:
                     break;
                 }
 
+                const auto tags = pass_tags ? take_tags(1) : std::vector<detail::ZmqTagHeaderRecord>{};
+                const auto header = pass_tags ? detail::serialize_tag_header(0, tags) : std::vector<std::uint8_t>{};
                 std::vector<uint8_t> serialized = legacy_pmt::serialize_to_legacy(_pending_items.front());
-                zmq::message_t reply(serialized.size());
+                zmq::message_t reply(header.size() + serialized.size());
+                if (!header.empty()) {
+                    std::memcpy(reply.data(), header.data(), header.size());
+                }
                 if (!serialized.empty()) {
-                    std::memcpy(reply.data(), serialized.data(), serialized.size());
+                    std::memcpy(static_cast<std::uint8_t*>(reply.data()) + header.size(), serialized.data(), serialized.size());
                 }
                 if (!bool(_transport.socket().send(reply, zmq::send_flags::dontwait))) {
                     break;

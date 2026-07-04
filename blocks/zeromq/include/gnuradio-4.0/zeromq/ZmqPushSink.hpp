@@ -1,6 +1,7 @@
 #pragma once
 
 #include "detail/ZmqCommon.hpp"
+#include "detail/ZmqTagHeaders.hpp"
 #include "trait_helpers.hpp"
 
 #include <algorithm>
@@ -56,6 +57,8 @@ public:
         }
 
         std::size_t consumed = 0;
+        const auto tags = pass_tags ? detail::collect_tag_records(inData) : std::vector<detail::ZmqTagHeaderRecord>{};
+        const auto header = pass_tags ? detail::serialize_tag_header(0, tags) : std::vector<std::uint8_t>{};
 
         // for vectors
         // FIXME: replace with cleaner type traits - not sure yet where to put them
@@ -63,8 +66,11 @@ public:
             for (auto& a : inData) {
                 const size_t size_in_bytes = a.size() * sizeof(typename T::value_type);
 
-                zmq::message_t zmsg(size_in_bytes);
-                memcpy(zmsg.data(), a.data(), size_in_bytes);
+                zmq::message_t zmsg(header.size() + size_in_bytes);
+                if (!header.empty()) {
+                    std::memcpy(zmsg.data(), header.data(), header.size());
+                }
+                std::memcpy(static_cast<std::uint8_t*>(zmsg.data()) + header.size(), a.data(), size_in_bytes);
                 if (!_transport.socket().send(zmsg, zmq::send_flags::dontwait)) {
                     break;
                 }
@@ -72,8 +78,11 @@ public:
             }
         } else if constexpr(is_arithmetic_or_complex_v<T>) {
             const size_t size_in_bytes = inData.size() * sizeof(T);
-            zmq::message_t zmsg(size_in_bytes);
-            memcpy(zmsg.data(), inData.data(), size_in_bytes);
+            zmq::message_t zmsg(header.size() + size_in_bytes);
+            if (!header.empty()) {
+                std::memcpy(zmsg.data(), header.data(), header.size());
+            }
+            std::memcpy(static_cast<std::uint8_t*>(zmsg.data()) + header.size(), inData.data(), size_in_bytes);
             if (_transport.socket().send(zmsg, zmq::send_flags::dontwait)) {
                 consumed = inData.size();
             }
@@ -82,8 +91,11 @@ public:
             // convert to legacy pmt, serialize, and push over socket
             for (auto& pmtObj : inData) {
                 std::vector<uint8_t> serialized = legacy_pmt::serialize_to_legacy(pmtObj);
-                zmq::message_t zmsg(serialized.size());
-                memcpy(zmsg.data(), serialized.data(), serialized.size());
+                zmq::message_t zmsg(header.size() + serialized.size());
+                if (!header.empty()) {
+                    std::memcpy(zmsg.data(), header.data(), header.size());
+                }
+                std::memcpy(static_cast<std::uint8_t*>(zmsg.data()) + header.size(), serialized.data(), serialized.size());
                 if (!_transport.socket().send(zmsg, zmq::send_flags::dontwait)) {
                     break;
                 }

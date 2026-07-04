@@ -32,9 +32,11 @@
 #include <gnuradio-4.0/zeromq/ZmqSubSource.hpp>
 #include <gnuradio-4.0/zeromq/ZmqPullSource.hpp>
 #include <gnuradio-4.0/zeromq/ZmqPushSink.hpp>
+#include <gnuradio-4.0/zeromq/detail/ZmqTagHeaders.hpp>
 #include <zmq.hpp>
 
 using namespace boost::ut;
+namespace zdetail = gr::incubator::zeromq::detail;
 
 namespace {
 
@@ -469,6 +471,114 @@ struct RecordingPmtSink : gr::Block<RecordingPmtSink> {
         }
     }
 };
+
+template <typename T>
+struct TaggedSequenceSource : gr::Block<TaggedSequenceSource<T>> {
+    gr::PortOut<T> out;
+    std::vector<T> values;
+    std::vector<std::pair<std::size_t, gr::property_map>> tags;
+    std::size_t index = 0;
+    gr::Size_t startup_delay_ms = 50;
+    bool started = false;
+
+    GR_MAKE_REFLECTABLE(TaggedSequenceSource, out, values, startup_delay_ms);
+
+    [[nodiscard]] T processOne() {
+        if (!started) {
+            started = true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(startup_delay_ms));
+        }
+        if (index >= values.size()) {
+            this->requestStop();
+            return T{};
+        }
+
+        for (const auto& [tag_index, tag_map] : tags) {
+            if (tag_index == index) {
+                this->publishTag(tag_map, 0UZ);
+            }
+        }
+
+        auto value = values[index++];
+        if (index >= values.size()) {
+            this->requestStop();
+        }
+        return value;
+    }
+};
+
+template <typename T>
+struct TaggedBulkSource : gr::Block<TaggedBulkSource<T>> {
+    gr::PortOut<T> out;
+    std::vector<T> values;
+    std::vector<std::pair<std::size_t, gr::property_map>> tags;
+    std::size_t emitted = 0;
+    gr::Size_t startup_delay_ms = 50;
+    bool started = false;
+
+    GR_MAKE_REFLECTABLE(TaggedBulkSource, out, values, startup_delay_ms);
+
+    [[nodiscard]] gr::work::Status processBulk(gr::OutputSpanLike auto& output) {
+        if (!started) {
+            started = true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(startup_delay_ms));
+        }
+
+        if (emitted >= values.size()) {
+            output.publish(0UZ);
+            return gr::work::Status::DONE;
+        }
+
+        const auto available = output.size();
+        const auto remaining = values.size() - emitted;
+        const auto n = std::min(available, remaining);
+        if (n == 0) {
+            return gr::work::Status::INSUFFICIENT_OUTPUT_ITEMS;
+        }
+        for (std::size_t i = 0; i < n; ++i) {
+            output[i] = values[emitted + i];
+        }
+        for (const auto& [tag_index, tag_map] : tags) {
+            if (tag_index >= emitted && tag_index < emitted + n) {
+                output.publishTag(tag_map, tag_index - emitted);
+            }
+        }
+        emitted += n;
+        output.publish(n);
+        return emitted >= values.size() ? gr::work::Status::DONE : gr::work::Status::OK;
+    }
+};
+
+struct RecordingTaggedSink : gr::Block<RecordingTaggedSink> {
+    gr::PortIn<float> in;
+    gr::Size_t n_samples_max = 0;
+    std::vector<float> received;
+    std::vector<std::pair<std::size_t, gr::property_map>> tags;
+    std::size_t consumed_total = 0;
+
+    GR_MAKE_REFLECTABLE(RecordingTaggedSink, in, n_samples_max);
+
+    [[nodiscard]] gr::work::Status processBulk(gr::InputSpanLike auto& input) {
+        const auto base_offset = consumed_total;
+        for (const auto& value : input) {
+            received.push_back(value);
+        }
+        for (const auto& [relIndex, tagMapRef] : input.tags()) {
+            if (relIndex >= 0) {
+                tags.emplace_back(base_offset + static_cast<std::size_t>(relIndex), tagMapRef.get());
+            }
+        }
+        consumed_total += input.size();
+        if (n_samples_max > 0 && received.size() >= n_samples_max) {
+            this->requestStop();
+        }
+        return gr::work::Status::OK;
+    }
+};
+
+static gr::property_map wire_tag(std::string_view key, gr::pmt::Value value, gr::pmt::Value srcid = gr::pmt::Value{}) {
+    return make_props({{"key", gr::pmt::Value(std::string(key))}, {"value", std::move(value)}, {"srcid", std::move(srcid)}});
+}
 
 std::vector<gr::pmt::Value> make_pmt_fixtures() {
     gr::pmt::Value::Map metadata{std::pmr::get_default_resource()};
@@ -1206,6 +1316,283 @@ const suite ZmqBlocksTests = [] {
 
         if (sender.joinable()) {
             sender.join();
+        }
+    };
+
+    "Push sink emits tag headers"_test = [] {
+        gr::Graph fg;
+        const auto endpoint = endpoint_for(26);
+        auto receiver = spawn_pull_receiver(endpoint, 1);
+
+        auto& source = fg.emplaceBlock<TaggedSequenceSource<float>>();
+        source.values = std::vector<float>(100, 1.f);
+        source.startup_delay_ms = 500;
+        for (std::size_t i = 0; i < source.values.size(); ++i) {
+            source.tags.emplace_back(i, wire_tag("alpha", gr::pmt::Value(int32_t{11}), gr::pmt::Value("src-a")));
+        }
+        auto& push = fg.emplaceBlock<gr::incubator::zeromq::ZmqPushSink<float>>(make_props({
+            {"endpoint", gr::pmt::Value(endpoint)},
+            {"timeout", gr::pmt::Value(25)},
+            {"bind", gr::pmt::Value(true)},
+            {"pass_tags", gr::pmt::Value(true)},
+        }));
+
+        expect(fg.connect<"out", "in">(source, push).has_value());
+
+        gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::multiThreaded> sched;
+        expect(sched.exchange(std::move(fg)).has_value());
+        expect(run_until_then_stop(sched, [&] { return receiver.wait_for(std::chrono::milliseconds{0}) == std::future_status::ready; }, std::chrono::milliseconds(3000)));
+
+        auto messages = receiver.get();
+        expect(eq(messages.size(), static_cast<std::size_t>(1)));
+        if (messages.size() == 1) {
+            std::uint64_t header_offset = 0;
+            std::vector<zdetail::ZmqTagHeaderRecord> tags;
+            const auto consumed = zdetail::parse_tag_header(messages[0].data(), messages[0].size(), header_offset, tags);
+            expect(eq(header_offset, 0ULL));
+            expect(eq(tags.size(), static_cast<std::size_t>(1)));
+            if (tags.size() == 1) {
+                expect(eq(tags[0].offset, 0ULL));
+                expect(eq(tags[0].key.value_or(std::string{}), std::string{"alpha"}));
+                expect(eq(tags[0].value.value_or<int32_t>(0), 11));
+                expect(eq(tags[0].srcid.value_or(std::string{}), std::string{"src-a"}));
+                const auto* payload = messages[0].data() + consumed;
+                const auto payload_size = messages[0].size() - consumed;
+                expect(eq(payload_size, 1UL * sizeof(float)));
+                const auto* floats = reinterpret_cast<const float*>(payload);
+                expect(eq(floats[0], 1.f));
+            }
+        }
+    };
+
+    "Pull source receives tag headers"_test = [] {
+        gr::Graph fg;
+        const auto endpoint = endpoint_for(27);
+        auto& source = fg.emplaceBlock<gr::incubator::zeromq::ZmqPullSource<float>>(make_props({
+            {"endpoint", gr::pmt::Value(endpoint)},
+            {"timeout", gr::pmt::Value(25)},
+            {"bind", gr::pmt::Value(true)},
+            {"pass_tags", gr::pmt::Value(true)},
+        }));
+        auto& sink = fg.emplaceBlock<RecordingTaggedSink>(make_props({
+            {"n_samples_max", gr::pmt::Value(static_cast<gr::Size_t>(4))},
+        }));
+
+        expect(fg.connect<"out", "in">(source, sink).has_value());
+
+        std::vector<zdetail::ZmqTagHeaderRecord> tags = {
+            {0, gr::pmt::Value("alpha"), gr::pmt::Value(int32_t{11}), gr::pmt::Value("src-a")},
+            {2, gr::pmt::Value("beta"), gr::pmt::Value(int32_t{22}), gr::pmt::Value("src-b")},
+        };
+        auto header = zdetail::serialize_tag_header(0, tags);
+        auto payload = to_bytes(std::vector<float>{1.f, 2.f, 3.f, 4.f});
+        std::vector<std::uint8_t> message;
+        message.reserve(header.size() + payload.size());
+        message.insert(message.end(), header.begin(), header.end());
+        message.insert(message.end(), payload.begin(), payload.end());
+        auto sender = spawn_push_sender(endpoint, std::move(message), std::chrono::milliseconds{100});
+
+        gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::multiThreaded> sched;
+        expect(sched.exchange(std::move(fg)).has_value());
+        expect(run_until_then_stop(sched, [&] { return sink.received.size() >= 4; }, std::chrono::milliseconds(3000)));
+        expect(eq(sink.received.size(), static_cast<std::size_t>(4)));
+        expect(eq(sink.tags.size(), static_cast<std::size_t>(2)));
+        if (sink.tags.size() == 2) {
+            expect(eq(sink.tags[0].first, static_cast<std::size_t>(0)));
+            expect(eq(sink.tags[0].second.at("key").value_or(std::string{}), std::string{"alpha"}));
+            expect(eq(sink.tags[0].second.at("value").value_or<int32_t>(0), 11));
+            expect(eq(sink.tags[1].first, static_cast<std::size_t>(2)));
+            expect(eq(sink.tags[1].second.at("key").value_or(std::string{}), std::string{"beta"}));
+            expect(eq(sink.tags[1].second.at("value").value_or<int32_t>(0), 22));
+        }
+
+        if (sender.joinable()) {
+            sender.join();
+        }
+    };
+
+    "Pub sink emits tag headers"_test = [] {
+        gr::Graph fg;
+        const auto endpoint = endpoint_for(28);
+        const std::string key = "tag.";
+        auto receiver = spawn_sub_receiver(endpoint, key);
+
+        auto& source = fg.emplaceBlock<TaggedSequenceSource<float>>();
+        source.values = std::vector<float>(100, 1.f);
+        source.startup_delay_ms = 500;
+        for (std::size_t i = 0; i < source.values.size(); ++i) {
+            source.tags.emplace_back(i, wire_tag("alpha", gr::pmt::Value(int32_t{11}), gr::pmt::Value("src-a")));
+        }
+        auto& pub = fg.emplaceBlock<gr::incubator::zeromq::ZmqPubSink<float>>(make_props({
+            {"endpoint", gr::pmt::Value(endpoint)},
+            {"timeout", gr::pmt::Value(25)},
+            {"bind", gr::pmt::Value(true)},
+            {"pass_tags", gr::pmt::Value(true)},
+            {"key", gr::pmt::Value(key)},
+        }));
+
+        expect(fg.connect<"out", "in">(source, pub).has_value());
+
+        gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::multiThreaded> sched;
+        expect(sched.exchange(std::move(fg)).has_value());
+        const bool completed = run_until_then_stop(sched, [&] { return receiver.wait_for(std::chrono::milliseconds{0}) == std::future_status::ready; }, std::chrono::milliseconds(3000));
+        expect(completed);
+        if (completed) {
+            auto frames = receiver.get();
+            expect(eq(frames.size(), static_cast<std::size_t>(2)));
+            if (frames.size() == 2) {
+                expect(eq(std::string_view(reinterpret_cast<const char*>(frames[0].data()), frames[0].size()), key));
+                std::uint64_t header_offset = 0;
+                std::vector<zdetail::ZmqTagHeaderRecord> tags;
+                const auto consumed = zdetail::parse_tag_header(frames[1].data(), frames[1].size(), header_offset, tags);
+                expect(eq(header_offset, 0ULL));
+                expect(eq(tags.size(), static_cast<std::size_t>(1)));
+                if (tags.size() == 1) {
+                    expect(eq(tags[0].offset, 0ULL));
+                    expect(eq(tags[0].key.value_or(std::string{}), std::string{"alpha"}));
+                    expect(eq(tags[0].value.value_or<int32_t>(0), 11));
+                }
+                const auto payload_size = frames[1].size() - consumed;
+                expect(eq(payload_size, 1UL * sizeof(float)));
+            }
+        }
+    };
+
+    "Sub source receives tag headers"_test = [] {
+        gr::Graph fg;
+        const auto endpoint = endpoint_for(29);
+        const std::string key = "tag.";
+
+        auto& sub = fg.emplaceBlock<gr::incubator::zeromq::ZmqSubSource<float>>(make_props({
+            {"endpoint", gr::pmt::Value(endpoint)},
+            {"timeout", gr::pmt::Value(25)},
+            {"bind", gr::pmt::Value(true)},
+            {"pass_tags", gr::pmt::Value(true)},
+            {"key", gr::pmt::Value(key)},
+        }));
+        auto& sink = fg.emplaceBlock<RecordingTaggedSink>(make_props({
+            {"n_samples_max", gr::pmt::Value(static_cast<gr::Size_t>(4))},
+        }));
+
+        expect(fg.connect<"out", "in">(sub, sink).has_value());
+
+        std::vector<zdetail::ZmqTagHeaderRecord> tags = {
+            {0, gr::pmt::Value("alpha"), gr::pmt::Value(int32_t{11}), gr::pmt::Value("src-a")},
+            {3, gr::pmt::Value("beta"), gr::pmt::Value(int32_t{22}), gr::pmt::Value("src-b")},
+        };
+        auto header = zdetail::serialize_tag_header(0, tags);
+        auto payload = to_bytes(std::vector<float>{1.f, 2.f, 3.f, 4.f});
+        std::vector<std::uint8_t> message;
+        message.reserve(header.size() + payload.size());
+        message.insert(message.end(), header.begin(), header.end());
+        message.insert(message.end(), payload.begin(), payload.end());
+        auto sender = spawn_pub_sender(endpoint, key, std::move(message), std::chrono::milliseconds{100});
+
+        gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::multiThreaded> sched;
+        expect(sched.exchange(std::move(fg)).has_value());
+        expect(run_until_then_stop(sched, [&] { return sink.received.size() >= 4; }, std::chrono::milliseconds(3000)));
+        expect(eq(sink.received.size(), static_cast<std::size_t>(4)));
+        expect(eq(sink.tags.size(), static_cast<std::size_t>(2)));
+        if (sink.tags.size() == 2) {
+            expect(eq(sink.tags[0].first, static_cast<std::size_t>(0)));
+            expect(eq(sink.tags[0].second.at("key").value_or(std::string{}), std::string{"alpha"}));
+            expect(eq(sink.tags[0].second.at("value").value_or<int32_t>(0), 11));
+            expect(eq(sink.tags[1].first, static_cast<std::size_t>(3)));
+            expect(eq(sink.tags[1].second.at("key").value_or(std::string{}), std::string{"beta"}));
+            expect(eq(sink.tags[1].second.at("value").value_or<int32_t>(0), 22));
+        }
+
+        if (sender.joinable()) {
+            sender.join();
+        }
+    };
+
+    "Rep sink emits tag headers"_test = [] {
+        gr::Graph fg;
+        const auto endpoint = endpoint_for(30);
+        auto client = spawn_req_client(endpoint, std::vector<uint32_t>{4U}, std::chrono::milliseconds{10});
+
+        auto& source = fg.emplaceBlock<TaggedBulkSource<float>>();
+        source.values = {1.f, 2.f, 3.f, 4.f};
+        source.startup_delay_ms = 250;
+        source.tags = {
+            {0UZ, wire_tag("alpha", gr::pmt::Value(int32_t{11}), gr::pmt::Value("src-a"))},
+        };
+        auto& rep = fg.emplaceBlock<gr::incubator::zeromq::ZmqRepSink<float>>(make_props({
+            {"endpoint", gr::pmt::Value(endpoint)},
+            {"timeout", gr::pmt::Value(2000)},
+            {"bind", gr::pmt::Value(true)},
+            {"pass_tags", gr::pmt::Value(true)},
+        }));
+
+        expect(fg.connect<"out", "in">(source, rep).has_value());
+
+        gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::multiThreaded> sched;
+        expect(sched.exchange(std::move(fg)).has_value());
+        expect(run_until_then_stop(sched, [&] { return client.wait_for(std::chrono::milliseconds{0}) == std::future_status::ready; }, std::chrono::milliseconds(3000)));
+
+        auto replies = client.get();
+        expect(eq(replies.size(), static_cast<std::size_t>(1)));
+        if (replies.size() == 1) {
+            std::uint64_t header_offset = 0;
+            std::vector<zdetail::ZmqTagHeaderRecord> tags;
+            const auto consumed = zdetail::parse_tag_header(replies[0].data(), replies[0].size(), header_offset, tags);
+            expect(eq(header_offset, 0ULL));
+            expect(eq(tags.size(), static_cast<std::size_t>(1)));
+            if (tags.size() == 1) {
+                expect(eq(tags[0].offset, 0ULL));
+                expect(eq(tags[0].key.value_or(std::string{}), std::string{"alpha"}));
+                expect(eq(tags[0].value.value_or<int32_t>(0), 11));
+            }
+            const auto payload_size = replies[0].size() - consumed;
+            expect(eq(payload_size, 4UL * sizeof(float)));
+        }
+
+    };
+
+    "Req source receives tag headers"_test = [] {
+        gr::Graph fg;
+        const auto endpoint = endpoint_for(31);
+        auto& source = fg.emplaceBlock<gr::incubator::zeromq::ZmqReqSource<float>>(make_props({
+            {"endpoint", gr::pmt::Value(endpoint)},
+            {"timeout", gr::pmt::Value(100)},
+            {"bind", gr::pmt::Value(true)},
+            {"pass_tags", gr::pmt::Value(true)},
+        }));
+        auto& sink = fg.emplaceBlock<RecordingTaggedSink>(make_props({
+            {"n_samples_max", gr::pmt::Value(static_cast<gr::Size_t>(4))},
+        }));
+
+        expect(fg.connect<"out", "in">(source, sink).has_value());
+
+        std::vector<zdetail::ZmqTagHeaderRecord> tags = {
+            {0, gr::pmt::Value("alpha"), gr::pmt::Value(int32_t{11}), gr::pmt::Value("src-a")},
+            {2, gr::pmt::Value("beta"), gr::pmt::Value(int32_t{22}), gr::pmt::Value("src-b")},
+        };
+        auto header = zdetail::serialize_tag_header(0, tags);
+        auto payload = to_bytes(std::vector<float>{1.f, 2.f, 3.f, 4.f});
+        std::vector<std::uint8_t> message;
+        message.reserve(header.size() + payload.size());
+        message.insert(message.end(), header.begin(), header.end());
+        message.insert(message.end(), payload.begin(), payload.end());
+        auto responder = spawn_rep_sequence_responder(endpoint, {std::move(message)}, std::chrono::milliseconds{100});
+
+        gr::scheduler::Simple<gr::scheduler::ExecutionPolicy::multiThreaded> sched;
+        expect(sched.exchange(std::move(fg)).has_value());
+        expect(run_until_then_stop(sched, [&] { return sink.received.size() >= 4; }, std::chrono::milliseconds(3000)));
+        expect(eq(sink.received.size(), static_cast<std::size_t>(4)));
+        expect(eq(sink.tags.size(), static_cast<std::size_t>(2)));
+        if (sink.tags.size() == 2) {
+            expect(eq(sink.tags[0].first, static_cast<std::size_t>(0)));
+            expect(eq(sink.tags[0].second.at("key").value_or(std::string{}), std::string{"alpha"}));
+            expect(eq(sink.tags[0].second.at("value").value_or<int32_t>(0), 11));
+            expect(eq(sink.tags[1].first, static_cast<std::size_t>(2)));
+            expect(eq(sink.tags[1].second.at("key").value_or(std::string{}), std::string{"beta"}));
+            expect(eq(sink.tags[1].second.at("value").value_or<int32_t>(0), 22));
+        }
+
+        if (responder.joinable()) {
+            responder.join();
         }
     };
 };
