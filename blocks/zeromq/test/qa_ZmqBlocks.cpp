@@ -482,10 +482,47 @@ std::vector<gr::pmt::Value> make_pmt_fixtures() {
 
     std::vector<gr::pmt::Value> items;
     items.emplace_back(false);
+    items.emplace_back(true);
+    items.emplace_back(int8_t{-7});
+    items.emplace_back(int16_t{-1234});
+    items.emplace_back(int32_t{123456});
     items.emplace_back(int64_t{249387429783478});
+    items.emplace_back(uint8_t{201});
+    items.emplace_back(uint16_t{54321});
+    items.emplace_back(uint32_t{3456789012U});
+    items.emplace_back(uint64_t{9876543210123456789ULL});
+    items.emplace_back(float{3.25f});
+    items.emplace_back(double{456.789});
+    items.emplace_back(std::complex<float>{1.25f, -2.5f});
+    items.emplace_back(std::complex<double>{123.456, -789.321});
     items.emplace_back(std::string{"example"});
+    items.emplace_back(gr::Tensor<uint8_t>(gr::data_from, std::vector<uint8_t>{1, 2, 3, 4}));
+    items.emplace_back(gr::Tensor<int8_t>(gr::data_from, std::vector<int8_t>{-1, -2, -3, -4}));
+    items.emplace_back(gr::Tensor<uint16_t>(gr::data_from, std::vector<uint16_t>{1000, 2000, 3000}));
+    items.emplace_back(gr::Tensor<int16_t>(gr::data_from, std::vector<int16_t>{-1000, -2000, 3000}));
+    items.emplace_back(gr::Tensor<uint32_t>(gr::data_from, std::vector<uint32_t>{10, 20, 30}));
+    items.emplace_back(gr::Tensor<int32_t>(gr::data_from, std::vector<int32_t>{-10, 20, -30}));
+    items.emplace_back(gr::Tensor<uint64_t>(gr::data_from, std::vector<uint64_t>{10000000000ULL, 20000000000ULL}));
+    items.emplace_back(gr::Tensor<int64_t>(gr::data_from, std::vector<int64_t>{-10000000000LL, 20000000000LL}));
     items.emplace_back(gr::Tensor<float>(gr::data_from, std::vector<float>{3.5f, 4.5f, 5.5f}));
+    items.emplace_back(gr::Tensor<double>(gr::data_from, std::vector<double>{6.5, 7.5, 8.5}));
+    items.emplace_back(gr::Tensor<std::complex<float>>(gr::data_from, std::vector<std::complex<float>>{
+        {1.5f, -2.5f},
+        {3.5f, -4.5f},
+    }));
+    items.emplace_back(gr::Tensor<std::complex<double>>(gr::data_from, std::vector<std::complex<double>>{
+        {1.25, -2.75},
+        {3.125, -4.875},
+    }));
     items.emplace_back(std::move(nested));
+    items.emplace_back(gr::Tensor<gr::pmt::Value>(gr::data_from, std::vector<gr::pmt::Value>{gr::pmt::Value(int32_t{123}), gr::pmt::Value(456.789)}));
+    items.emplace_back(gr::Tensor<gr::pmt::Value>(gr::data_from, std::vector<gr::pmt::Value>{
+        gr::pmt::Value(int32_t{1}),
+        gr::pmt::Value(gr::Tensor<gr::pmt::Value>(gr::data_from, std::vector<gr::pmt::Value>{
+            gr::pmt::Value(int32_t{2}),
+            gr::pmt::Value(gr::Tensor<gr::pmt::Value>(gr::data_from, std::vector<gr::pmt::Value>{gr::pmt::Value(int32_t{3}), gr::pmt::Value{}})),
+        })),
+    }));
     items.emplace_back(gr::Tensor<gr::pmt::Value>(gr::data_from, std::vector<gr::pmt::Value>{gr::pmt::Value(int32_t{7}), gr::pmt::Value("nested"), gr::pmt::Value(gr::Tensor<float>(gr::data_from, std::vector<float>{9.f, 10.f}))}));
     return items;
 }

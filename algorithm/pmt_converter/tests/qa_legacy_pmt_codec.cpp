@@ -21,6 +21,8 @@ namespace {
     const std::vector<uint8_t> legacy_tuple_data = {0x0c,0x00,0x00,0x00,0x02,0x03,0x00,0x00,0x00,0x7b,0x04,0x40,0x7c,0x8c,0x9f,0xbe,0x76,0xc8,0xb4};
     // >>> pmt.serialize_str(pmt.cons(pmt.from_long(123), pmt.from_double(456.789))).hex()
     const std::vector<uint8_t> legacy_pair_data = {0x07,0x03,0x00,0x00,0x00,0x7b,0x04,0x40,0x7c,0x8c,0x9f,0xbe,0x76,0xc8,0xb4};
+    // >>> pmt.serialize_str(pmt.cons(pmt.from_long(1), pmt.cons(pmt.from_long(2), pmt.cons(pmt.from_long(3), pmt.PMT_NIL)))).hex()
+    const std::vector<uint8_t> legacy_nested_pair_data = {0x07,0x03,0x00,0x00,0x00,0x01,0x07,0x03,0x00,0x00,0x00,0x02,0x07,0x03,0x00,0x00,0x00,0x03,0x06};
     // >>> pmt.serialize_str(pmt.make_u8vector(4,222)).hex()   
     const std::vector<uint8_t> legacy_u8vector_data = {0x0a,0x00,0x00,0x00,0x00,0x04,0x01,0x00,0xde,0xde,0xde,0xde};
     // >>> pmt.serialize_str(pmt.make_f32vector(4,-987.654321)).hex()   
@@ -101,6 +103,22 @@ namespace {
         EXPECT_EQ(serialized, legacy_dict_data);
     }
 
+    TEST(PmtLegacyCodecTest, SerializePair) {
+        gr::Tensor<gr::pmt::Value> pair{gr::pmt::Value(int32_t{123}), gr::pmt::Value(456.789)};
+        gr::pmt::Value obj = pair;
+        std::vector<uint8_t> serialized = legacy_pmt::serialize_to_legacy(obj);
+        EXPECT_EQ(serialized, legacy_pair_data);
+    }
+
+    TEST(PmtLegacyCodecTest, SerializeNestedPair) {
+        gr::Tensor<gr::pmt::Value> nested_tail{gr::pmt::Value(int32_t{3}), gr::pmt::Value{}};
+        gr::Tensor<gr::pmt::Value> nested_mid{gr::pmt::Value(int32_t{2}), gr::pmt::Value(nested_tail)};
+        gr::Tensor<gr::pmt::Value> nested_head{gr::pmt::Value(int32_t{1}), gr::pmt::Value(nested_mid)};
+        gr::pmt::Value obj = nested_head;
+        std::vector<uint8_t> serialized = legacy_pmt::serialize_to_legacy(obj);
+        EXPECT_EQ(serialized, legacy_nested_pair_data);
+    }
+
     // --- Test: Deserialize from legacy format ---
     TEST(PmtLegacyCodecTest, DeserializeNil) {
         gr::pmt::Value obj = legacy_pmt::deserialize_from_legacy(legacy_nil_data.data(), legacy_nil_data.size());
@@ -151,6 +169,34 @@ namespace {
         auto* t3 = obj.get_if<gr::Tensor<std::complex<float>>>();
         ASSERT_NE(t3, nullptr);
         EXPECT_EQ(std::vector<std::complex<float>>(t3->begin(), t3->end()), expected_c32_vector);        
+    }
+
+    TEST(PmtLegacyCodecTest, DeserializePair) {
+        gr::pmt::Value obj = legacy_pmt::deserialize_from_legacy(legacy_pair_data.data(), legacy_pair_data.size());
+        const auto* pair = obj.get_if<gr::Tensor<gr::pmt::Value>>();
+        ASSERT_NE(pair, nullptr);
+        ASSERT_EQ(pair->size(), 2U);
+        EXPECT_EQ(pair->at(0).value_or<int32_t>(0), 123);
+        EXPECT_DOUBLE_EQ(pair->at(1).value_or<double>(0.0), 456.789);
+    }
+
+    TEST(PmtLegacyCodecTest, DeserializeNestedPair) {
+        gr::pmt::Value obj = legacy_pmt::deserialize_from_legacy(legacy_nested_pair_data.data(), legacy_nested_pair_data.size());
+        const auto* head = obj.get_if<gr::Tensor<gr::pmt::Value>>();
+        ASSERT_NE(head, nullptr);
+        ASSERT_EQ(head->size(), 2U);
+        EXPECT_EQ(head->at(0).value_or<int32_t>(0), 1);
+
+        const auto* mid = head->at(1).get_if<gr::Tensor<gr::pmt::Value>>();
+        ASSERT_NE(mid, nullptr);
+        ASSERT_EQ(mid->size(), 2U);
+        EXPECT_EQ(mid->at(0).value_or<int32_t>(0), 2);
+
+        const auto* tail = mid->at(1).get_if<gr::Tensor<gr::pmt::Value>>();
+        ASSERT_NE(tail, nullptr);
+        ASSERT_EQ(tail->size(), 2U);
+        EXPECT_EQ(tail->at(0).value_or<int32_t>(0), 3);
+        EXPECT_TRUE(tail->at(1).is_monostate());
     }
 
 }

@@ -16,6 +16,8 @@ using gr::pmt::Value;
 
 namespace legacy_pmt {
 
+std::vector<uint8_t> serialize_to_legacy(const Value& obj);
+
 enum class legacy_tag : uint8_t {
     LEGACY_PMT_TRUE = 0x00,
     LEGACY_PMT_FALSE = 0x01,
@@ -217,6 +219,7 @@ static std::vector<uint8_t> serialize_string(std::string_view str) {
     return out;
 }
 
+static std::vector<uint8_t> serialize_pair(const Tensor<Value>& tensor);
 static std::vector<uint8_t> serialize_tuple(const Tensor<Value>& tensor);
 
 static std::vector<uint8_t> serialize_dict(const Value::Map& map) {
@@ -266,6 +269,23 @@ static std::vector<uint8_t> serialize_tuple(const Tensor<Value>& tensor) {
         auto bytes = serialize_to_legacy(v);
         out.insert(out.end(), bytes.begin(), bytes.end());
     }
+    return out;
+}
+
+static std::vector<uint8_t> serialize_pair(const Tensor<Value>& tensor) {
+    if (tensor.size() != 2) {
+        throw std::runtime_error("Legacy PMT pair serialization requires a 2-element tensor");
+    }
+
+    std::vector<uint8_t> out;
+    write_u8(out, static_cast<uint8_t>(legacy_tag::LEGACY_PMT_PAIR));
+
+    auto car_bytes = serialize_to_legacy(tensor[0]);
+    out.insert(out.end(), car_bytes.begin(), car_bytes.end());
+
+    auto cdr_bytes = serialize_to_legacy(tensor[1]);
+    out.insert(out.end(), cdr_bytes.begin(), cdr_bytes.end());
+
     return out;
 }
 
@@ -327,6 +347,10 @@ static bool try_serialize_tensor(const Value& obj, std::vector<uint8_t>& out) {
         return true;
     }
     if (auto t = obj.get_if<Tensor<Value>>()) {
+        if (t->size() == 2) {
+            out = serialize_pair(*t);
+            return true;
+        }
         out = serialize_tuple(*t);
         return true;
     }
@@ -513,6 +537,16 @@ std::vector<VTYPE> create_vector_from_big_endian(const uint8_t*& ptr, const uint
 
 static Value deserialize_value(const uint8_t*& ptr, const uint8_t* end);
 
+static Value deserialize_pair(const uint8_t*& ptr, const uint8_t* end) {
+    Value car = deserialize_value(ptr, end);
+    Value cdr = deserialize_value(ptr, end);
+    std::vector<Value> values;
+    values.reserve(2);
+    values.push_back(std::move(car));
+    values.push_back(std::move(cdr));
+    return Value(Tensor<Value>(std::move(values)));
+}
+
 static Value deserialize_dict(const uint8_t*& ptr, const uint8_t* end) {
     if (ptr >= end) {
         throw std::runtime_error("Truncated legacy PMT buffer (dict)");
@@ -668,11 +702,7 @@ static Value deserialize_value(const uint8_t*& ptr, const uint8_t* end) {
             return Value(Tensor<Value>(values));
         }
         case legacy_tag::LEGACY_PMT_PAIR: {
-            std::vector<Value> values;
-            values.reserve(2);
-            values.push_back(deserialize_value(ptr, end));
-            values.push_back(deserialize_value(ptr, end));
-            return Value(Tensor<Value>(values));
+            return deserialize_pair(ptr, end);
         }
         case legacy_tag::LEGACY_PMT_DICT:
             return deserialize_dict(ptr, end);
