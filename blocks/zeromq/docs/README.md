@@ -122,6 +122,24 @@ zmq_pmt_payload push tcp://127.0.0.1:5558
 zmq_pmt_payload pull tcp://127.0.0.1:5558
 ```
 
+Tagged GR3 stream through GR4 and back to GR3:
+
+```bash
+zmq_loopback float tcp://127.0.0.1:5555 tcp://127.0.0.1:5556
+```
+
+In another shell with GNU Radio 3 on `PYTHONPATH`:
+
+```bash
+python3 blocks/zeromq/examples/gr3_zmq_tag_loopback.py
+```
+
+The GR3 flowgraph sends float samples with multiple PMT tags, including two tags
+at offset zero, through `zeromq.push_sink(pass_tags=True)`. GR4 receives them
+with `ZmqPullSource<float>`, forwards the stream and tags through
+`ZmqPushSink<float>`, and GR3 receives them with
+`zeromq.pull_source(pass_tags=True)`.
+
 ## GNU Radio 3 Interop Recipes
 
 GR3 raw push into GR4 pull:
