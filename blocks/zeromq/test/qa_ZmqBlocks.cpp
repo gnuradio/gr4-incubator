@@ -50,7 +50,7 @@ gr::property_map make_props(std::initializer_list<std::pair<std::string_view, gr
 }
 
 std::string endpoint_for(int offset) {
-    const int base = 40000 + (getpid() % 1000);
+    const int base = 20000 + ((getpid() * 97) % 20000);
     return std::format("tcp://127.0.0.1:{}", base + offset);
 }
 
@@ -887,7 +887,7 @@ const suite ZmqBlocksTests = [] {
 
         auto& source = fg.emplaceBlock<DelayedCountingSource<float>>(make_props({
             {"n_samples_max", gr::pmt::Value(static_cast<gr::Size_t>(3))},
-            {"startup_delay_ms", gr::pmt::Value(static_cast<gr::Size_t>(100))},
+            {"startup_delay_ms", gr::pmt::Value(static_cast<gr::Size_t>(1000))},
         }));
         auto& pub = fg.emplaceBlock<gr::incubator::zeromq::ZmqPubSink<float>>(make_props({
             {"endpoint", gr::pmt::Value(endpoint)},
@@ -1326,7 +1326,7 @@ const suite ZmqBlocksTests = [] {
 
         auto& source = fg.emplaceBlock<TaggedSequenceSource<float>>();
         source.values = std::vector<float>(100, 1.f);
-        source.startup_delay_ms = 500;
+        source.startup_delay_ms = 1000;
         for (std::size_t i = 0; i < source.values.size(); ++i) {
             source.tags.emplace_back(i, wire_tag("alpha", gr::pmt::Value(int32_t{11}), gr::pmt::Value("src-a")));
         }
