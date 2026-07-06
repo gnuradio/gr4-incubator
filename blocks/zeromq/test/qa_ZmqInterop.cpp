@@ -38,7 +38,7 @@ using namespace boost::ut;
 namespace {
 
 std::string endpoint_for(int offset) {
-    const int base = 52000 + (getpid() % 1000);
+    const int base = 42000 + ((getpid() * 53) % 10000);
     return std::format("tcp://127.0.0.1:{}", base + offset);
 }
 

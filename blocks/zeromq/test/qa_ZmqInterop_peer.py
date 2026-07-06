@@ -120,8 +120,10 @@ def raw_rep_sink(endpoint):
     head = blocks.head(gr.sizeof_float, len(RAW_VALUES_OUTBOUND))
     sink = zeromq.rep_sink(gr.sizeof_float, 1, endpoint, 100, False, -1, False)
     tb.connect(src, head, sink)
-    time.sleep(0.15)
+    time.sleep(0.3)
     tb.start()
+    time.sleep(1.0)
+    tb.stop()
     tb.wait()
     return 0
 
