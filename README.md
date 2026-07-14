@@ -35,7 +35,6 @@ The tree is organized around creating multiple modules under the `blocks` direct
 ├── docker
 ├── examples
 │   └── gr3_flowgraphs
-└── subprojects
 ```
 
 
@@ -50,7 +49,7 @@ The CMake path is the active build path for this branch.
 
 ### Build policy
 
-- System dependencies only (`find_package` / `pkg-config`); no `subprojects/` or `FetchContent`.
+- System dependencies only (`find_package` / `pkg-config`); no vendored dependency subprojects or `FetchContent`.
 - Plugins are hard-disabled in CMake (`ENABLE_PLUGINS=ON` is an error).
 - GUI examples are optional and `OFF` by default.
 
@@ -110,11 +109,10 @@ The current CMake setup is intentionally pragmatic. Full canonical cleanup is ga
 
 - Add install/export package config for this repo (`install(EXPORT ...)`, `gr4-incubatorConfig.cmake`).
 - Reduce custom fallback logic for GUI dependency discovery once upstream/system packages are stable.
-- Keep CMake and Meson behavior aligned while migration is ongoing.
 
 ### Upstream gating factors (gnuradio4 and ecosystem)
 
 - Stable exported CMake package targets from `gnuradio4` for all required link interfaces.
 - Canonical target/package exposure for blocklib components currently consumed as raw libraries.
 - Consistent distro packaging (or official CMake package configs) for optional GUI dependencies, especially `implot`.
-- Clear upstream contract for optional/plugin mechanisms to replace Meson bootstrap-specific workflows cleanly in CMake.
+- Clear upstream contract for optional/plugin mechanisms in CMake.

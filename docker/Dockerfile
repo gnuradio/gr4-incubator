@@ -4,7 +4,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update -q && apt-get install --no-install-recommends -qy \
     wget gpg ca-certificates software-properties-common \
-    bash file locales build-essential sudo cmake git make ninja-build meson \
+    bash file locales build-essential sudo cmake git make ninja-build \
     cppzmq-dev libfftw3-dev \
     clang-20 clang-tools-20 libc++-20-dev libc++abi-20-dev gdb lldb-20 gcc-15 g++-15 \
     ccache mold \

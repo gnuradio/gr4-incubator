@@ -400,7 +400,7 @@ function(gr4_incubator_resolve_dependencies)
     set(GR4I_GNURADIO4_PLUGIN_TARGET "" PARENT_SCOPE)
   endif()
 
-  # Keep explicit blocklib-core linkage equivalent to Meson setup.
+  # Keep explicit blocklib-core linkage until upstream CMake targets expose it.
   find_library(GR4I_BLOCKLIB_CORE_LIB NAMES gnuradio-blocklib-core REQUIRED)
   add_library(gr4_incubator_blocklib_core UNKNOWN IMPORTED)
   set_target_properties(gr4_incubator_blocklib_core PROPERTIES IMPORTED_LOCATION "${GR4I_BLOCKLIB_CORE_LIB}")
