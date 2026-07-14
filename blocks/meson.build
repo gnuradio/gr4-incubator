@@ -1,7 +1,0 @@
-subdir('basic')
-subdir('zeromq')
-subdir('pfb')
-subdir('analog')
-subdir('audio')
-subdir('sigmf')
-subdir('soapysdr')

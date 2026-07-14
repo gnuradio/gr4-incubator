@@ -1,5 +1,0 @@
-[wrap-git]
-directory = pmt_converter
-url = https://github.com/mormj/pmt_converter.git
-revision = pre-tensor
-depth = 1

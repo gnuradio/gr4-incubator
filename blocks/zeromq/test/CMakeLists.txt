@@ -1,2 +1,1 @@
-# Meson has this test disabled; keep parity during migration.
-message(STATUS "Skipping qa_ZmqPushPull (disabled in Meson)")
+# qa_ZmqPushPull is intentionally not registered in the CMake test suite.
