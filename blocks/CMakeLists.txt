@@ -1,6 +1,17 @@
 function(gr4_incubator_add_ut_test target_name source_file)
   add_executable(${target_name} ${source_file})
   target_link_libraries(${target_name} PRIVATE ${GR4I_GNURADIO4_TARGET} ${GR4I_BOOST_UT_TARGET})
+  if(GR4_USE_PRECOMPILE_HEADERS)
+    target_precompile_headers(${target_name} PRIVATE
+      <vector>
+      <format>
+      <ranges>
+      <complex>
+      <memory>
+      <numeric>
+      <atomic>
+    )
+  endif()
   add_test(NAME ${target_name} COMMAND ${target_name})
 endfunction()
 

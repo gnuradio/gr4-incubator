@@ -14,6 +14,8 @@ option(ENABLE_PLUGINS "Enable plugin build path" OFF)
 option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(USE_CCACHE "Use ccache if available" ON)
 option(GR_USE_FETCHCONTENT_DEPS "Allow CMake to download selected third-party dependencies with FetchContent" OFF)
+option(GR4_USE_PRECOMPILE_HEADERS "Use precompiled headers for faster test compilation" OFF)
+mark_as_advanced(GR4_USE_PRECOMPILE_HEADERS)
 
 set(IMPLOT_SOURCE_DIR "" CACHE PATH "Path to an implot source tree (contains implot.h)")
 set(IMPLOT_INCLUDE_DIR "" CACHE PATH "Override include directory containing implot.h")
