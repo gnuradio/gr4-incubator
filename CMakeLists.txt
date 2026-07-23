@@ -74,6 +74,11 @@ if(ENABLE_EXAMPLES)
   add_subdirectory(examples)
 endif()
 
+# ── block-schema-lint (Cue validation, optional) ───────────────────
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/block-schema-lint/CMakeLists.txt")
+  add_subdirectory(tools/block-schema-lint)
+endif()
+
 message(STATUS "ENABLE_EXAMPLES      : ${ENABLE_EXAMPLES}")
 message(STATUS "ENABLE_GUI_EXAMPLES  : ${ENABLE_GUI_EXAMPLES}")
 message(STATUS "ENABLE_TESTING       : ${ENABLE_TESTING}")
