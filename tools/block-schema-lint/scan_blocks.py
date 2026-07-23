@@ -38,8 +38,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import traceback
+from contextlib import contextmanager
 from pathlib import Path
-from typing import NotRequired, Required, TypedDict, cast
+from typing import Generator, NotRequired, Required, TypedDict, cast
 
 
 # ── TypedDicts for well-known dict shapes ─────────────────────────
@@ -125,6 +127,22 @@ class ValidateResult(TypedDict):
     issues: Required[list[IssueDict]]
     passed: Required[bool]
 
+@contextmanager
+def _tmp_file(suffix: str = ".tmp", prefix: str = "bsl_") -> Generator[str, None, None]:
+    """Create a temporary file in ./tmp, yield its path, clean up on exit."""
+    (Path.cwd() / "tmp").mkdir(parents=True, exist_ok=True)
+    f = tempfile.NamedTemporaryFile(
+        mode="w", suffix=suffix, delete=False, prefix=prefix, dir=str(Path.cwd() / "tmp")
+    )
+    path = f.name
+    f.close()
+    try:
+        yield path
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
 IS_MACOS = platform.system() == "Darwin"
 
 # ── clang.cindex setup ─────────────────────────────────────────────
@@ -167,7 +185,7 @@ def _find_resource_dir(libclang_path: str = "") -> str:
         result = subprocess.check_output([clang_path, "-print-resource-dir"], text=True).strip()
         if result:
             return result
-    except Exception as exc:
+    except (OSError, subprocess.CalledProcessError) as exc:
         raise RuntimeError(
             f"clang -print-resource-dir failed: {exc}. "
             "Set LLVM_RESOURCE_DIR env var."
@@ -183,8 +201,9 @@ def _find_libclang() -> str:
 
     Priority:
     1. CLANG_LIBRARY_PATH env var
-    2. ctypes.util.find_library (portable)
+    2. llvm-config --libdir glob
     3. Platform-specific common paths
+    4. ctypes.util.find_library
     """
     env = os.environ.get("CLANG_LIBRARY_PATH")
     if env:
@@ -192,59 +211,43 @@ def _find_libclang() -> str:
 
     candidates: list[str] = []
 
+    # Find llvm-config on PATH or common locations
+    llvm_config = shutil.which("llvm-config")
+    if not llvm_config:
+        for v in range(99, 10, -1):
+            p = shutil.which(f"llvm-config-{v}")
+            if p:
+                llvm_config = p
+                break
+    if not llvm_config and IS_MACOS:
+        # Keg-only Homebrew LLVM is not on PATH — probe standard prefixes
+        for prefix in ("/opt/homebrew/opt/llvm", "/usr/local/opt/llvm"):
+            p = os.path.join(prefix, "bin", "llvm-config")
+            if os.path.isfile(p):
+                llvm_config = p
+                break
+    if llvm_config:
+        try:
+            libdir = subprocess.check_output([llvm_config, "--libdir"], text=True).strip()
+            libdir_p = Path(libdir)
+            if libdir_p.is_dir():
+                pattern = "libclang*.dylib" if IS_MACOS else "libclang*.so*"
+                for f in sorted(libdir_p.glob(pattern), reverse=True):
+                    candidates.append(str(f))
+        except (OSError, subprocess.CalledProcessError):
+            pass
+
+    # Platform-specific fallback paths
     if IS_MACOS:
-        # Try llvm-config --libdir first (find any version with glob)
-        llvm_config = shutil.which("llvm-config")
-        if not llvm_config:
-            for v in range(99, 10, -1):
-                p = shutil.which(f"llvm-config-{v}")
-                if p:
-                    llvm_config = p
-                    break
-        if not llvm_config:
-            # Keg-only Homebrew LLVM is not on PATH — probe standard prefixes
-            for prefix in ("/opt/homebrew/opt/llvm", "/usr/local/opt/llvm"):
-                p = os.path.join(prefix, "bin", "llvm-config")
-                if os.path.isfile(p):
-                    llvm_config = p
-                    break
-        if llvm_config:
-            try:
-                libdir = subprocess.check_output([llvm_config, "--libdir"], text=True).strip()
-                libdir_p = Path(libdir)
-                if libdir_p.is_dir():
-                    for f in sorted(libdir_p.glob("libclang*.dylib"), reverse=True):
-                        candidates.append(str(f))
-            except Exception:
-                pass
         candidates += [
             "/usr/local/opt/llvm/lib/libclang.dylib",
             "/Library/Developer/CommandLineTools/usr/lib/libclang.dylib",
             "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/libclang.dylib",
         ]
     else:
-        # Try llvm-config --libdir first (find any version with glob)
-        llvm_config = shutil.which("llvm-config")
-        if not llvm_config:
-            for v in range(99, 10, -1):
-                p = shutil.which(f"llvm-config-{v}")
-                if p:
-                    llvm_config = p
-                    break
-        if llvm_config:
-            try:
-                libdir = subprocess.check_output([llvm_config, "--libdir"], text=True).strip()
-                libdir_p = Path(libdir)
-                if libdir_p.is_dir():
-                    for f in sorted(libdir_p.glob("libclang*.so*"), reverse=True):
-                        candidates.append(str(f))
-            except Exception:
-                pass
-        # Glob all llvm-* lib directories for libclang
         for d in sorted(Path("/usr/lib").glob("llvm-*"), reverse=True):
             for so in sorted((d / "lib").glob("libclang*.so*"), reverse=True):
                 candidates.append(str(so))
-        # Multiarch paths (glob for .so, .so.1, .so.* etc)
         for m in ("x86_64-linux-gnu", "aarch64-linux-gnu"):
             for so in sorted(Path(f"/usr/lib/{m}").glob("libclang*.so*"), reverse=True):
                 candidates.append(str(so))
@@ -253,20 +256,18 @@ def _find_libclang() -> str:
         if Path(p).is_file():
             return p
 
-    # Portable fallback: ctypes find_library
     try:
         result = ctypes.util.find_library("clang")
         if result:
             return result
-    except Exception:
+    except Exception:  # ctypes C extension boundary
         pass
 
-    err = (
+    raise RuntimeError(
         "libclang shared library not found. "
         "Set CLANG_LIBRARY_PATH env var, install libclang-dev, "
         "or install LLVM from https://llvm.org"
     )
-    raise RuntimeError(err)
 
 
 LIBCLANG_PATH = _find_libclang()
@@ -370,7 +371,7 @@ def _find_libcxx_include() -> str | None:
     """Find libc++ include dir alongside the detected libclang path."""
     try:
         libclang = Path(LIBCLANG_PATH).resolve()
-    except Exception:
+    except (OSError, RuntimeError):
         return None
     # Walk up from libclang path looking for include/c++/v1
     for parent in libclang.parents:
@@ -449,14 +450,9 @@ def parse_headers_batch(
 
     # Create temp source that includes all headers
     include_lines = "\n".join(f'#include "{r}"' for r in resolved)
-    (Path.cwd() / "tmp").mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".cpp", delete=False, prefix="bsl_batch_", dir=Path.cwd() / "tmp"
-    ) as f:
-        f.write(include_lines + "\n")
-        tmp_path = f.name
-
-    try:
+    with _tmp_file(suffix=".cpp", prefix="bsl_batch_") as tmp_path:
+        with open(tmp_path, "w") as f:
+            f.write(include_lines + "\n")
         tu = _INDEX.parse(
             tmp_path,
             args=args,
@@ -474,11 +470,6 @@ def parse_headers_batch(
             result[r] = (tu, {"errors": header_errors})
 
         return result
-    finally:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
 
 
 # ── cursor walking ─────────────────────────────────────────────────
@@ -550,74 +541,12 @@ def _build_file_index(
     return idx
 
 
-def _find_macro_expansion(
-    cursor: ci.Cursor, target_file: str, macro_name: str
-) -> ci.Cursor | None:
-    """Find a MACRO_INSTANTIATION cursor with the given name in the target file.
-    Legacy wrapper; prefer using _build_file_index for new code.
-    """
-    # Use single-pass index approach for speed
-    idx = _build_file_index(cursor, {target_file})
-    file_idx = idx.get(target_file, {})
-    return file_idx.get("macros", {}).get(macro_name)
-
-
-def _find_all_in_file(cursor: ci.Cursor, target_file: str) -> list[ci.Cursor]:
-    """Find ALL cursors in the given file.
-    Legacy wrapper; prefer using _build_file_index for new code.
-    """
-    # For backward compat, we still do a full walk collecting everything.
-    # But _build_file_index doesn't collect ALL cursors (too expensive).
-    # So keep the original implementation but with a hard depth cap.
-    result: list[ci.Cursor] = []
-
-    def _walk(c: ci.Cursor, depth: int = 0):
-        if depth > 50:
-            return
-        loc = c.location
-        if not loc.file:
-            for child in c.get_children():
-                _walk(child, depth + 1)
-            return
-        floc = str(loc.file)
-        if target_file not in floc:
-            return
-        result.append(c)
-        for child in c.get_children():
-            _walk(child, depth + 1)
-
-    _walk(cursor)
-    return result
-
-
-def _find_structs_in_file(cursor: ci.Cursor, target_file: str) -> list[ci.Cursor]:
-    """Find all struct/class/template declarations in the target file.
-    Legacy wrapper; prefer using _build_file_index for new code.
-    """
-    idx = _build_file_index(cursor, {target_file})
-    return idx.get(target_file, {}).get("structs", [])
-
-
 # ── macro argument extraction ──────────────────────────────────────
 
 
-# LRU cache for macro tokens keyed by cursor pointer value
-_macro_tokens_cache: dict[int, list[str]] = {}
-
-
 def extract_macro_tokens(cursor: ci.Cursor) -> list[str]:
-    """Extract token spellings from a macro expansion cursor.
-    Results cached by cursor hash to avoid repeated libclang calls.
-    """
-    cid = id(cursor)
-    cached = _macro_tokens_cache.get(cid)
-    if cached is not None:
-        return cached
-    tokens = [t.spelling for t in cursor.get_tokens()]
-    # Cache but keep size bounded (expansions are small)
-    if len(_macro_tokens_cache) < 500:
-        _macro_tokens_cache[cid] = tokens
-    return tokens
+    """Extract token spellings from a macro expansion cursor."""
+    return [t.spelling for t in cursor.get_tokens()]
 
 
 def parse_register_block_tokens(tokens: list[str]) -> RegistrationDict:
@@ -760,7 +689,7 @@ def canonical_type_str(t: ci.Type) -> str:
     try:
         canonical = t.get_canonical()
         return canonical.spelling or t.spelling
-    except Exception:
+    except Exception:  # clang C extension boundary
         return t.spelling
 
 
@@ -787,7 +716,7 @@ def _port_from_tokens(field_cursor: ci.Cursor) -> str | None:
                 return "input"
             if s == "PortOut":
                 return "output"
-    except Exception:
+    except Exception:  # clang C extension boundary
         pass
     return None
 
@@ -865,7 +794,7 @@ def _decode_escapes(s: str) -> str:
                 out.append(ord(s[i]))
                 i += 1
         return out.decode("utf-8")
-    except Exception:
+    except (ValueError, UnicodeDecodeError):
         return s
 
 
@@ -891,7 +820,7 @@ def classify_field(field_cursor: ci.Cursor) -> MemberDict:
                     if tok in ("PortIn", "PortOut") and i + 3 < len(toks) and toks[i + 1] == "<":
                         inner = toks[i + 2]  # the T in PortIn<T>
                         break
-            except Exception:
+            except Exception:  # clang C extension boundary
                 pass
         if not inner:
             inner = type_text
@@ -946,14 +875,14 @@ def extract_type_alias_docs(
                     if m:
                         raw = m.group(1) or m.group(2) or ""
                         docs[c.spelling] = _decode_escapes(raw)
-                except Exception:
+                except Exception:  # clang C extension boundary
                     pass
             # Also check aliases like `gr_refl_class_name` for class name
             elif c.spelling == "gr_refl_class_name":
                 try:
                     utt = c.underlying_typedef_type
                     docs[c.spelling] = utt.spelling
-                except Exception:
+                except Exception:  # clang C extension boundary
                     pass
     return docs
 
@@ -961,6 +890,16 @@ def extract_type_alias_docs(
 # ── block descriptor construction ──────────────────────────────────
 
 
+_NON_BLOCK_STRUCTS = frozenset({
+    "BufferImpl", "Tag", "exception", "Error", "Message",
+    "formatter", "LayoutRight", "LayoutLeft", "Visible",
+    "NoDefaultTagForwarding", "BackwardTagForwarding", "BitPattern",
+    "CPU", "GPU", "PortMetaInfo", "InternalPortBuffers", "Optional",
+    "DefaultMessageBuffer", "DefaultTagBuffer", "Async",
+    "port_buffers", "BuiltinTag", "FromChildrenTag", "ForChildrenTag",
+    "DynamicPort", "model", "owned_value_tag", "non_owned_reference_tag",
+    "struct_get", "SpanOwner",
+})
 def build_block_descriptor(
     header_path: str,
     tu: ci.TranslationUnit,
@@ -1021,39 +960,8 @@ def build_block_descriptor(
         if not block_name:
             continue
 
-        # Skip utility structs that are not blocks
-        if block_name in (
-            "BufferImpl",
-            "Tag",
-            "exception",
-            "Error",
-            "Message",
-            "formatter",
-            "LayoutRight",
-            "LayoutLeft",
-            "Visible",
-            "NoDefaultTagForwarding",
-            "BackwardTagForwarding",
-            "BitPattern",
-            "CPU",
-            "GPU",
-            "PortMetaInfo",
-            "InternalPortBuffers",
-            "Optional",
-            "DefaultMessageBuffer",
-            "DefaultTagBuffer",
-            "Async",
-            "port_buffers",
-            "BuiltinTag",
-            "FromChildrenTag",
-            "ForChildrenTag",
-            "DynamicPort",
-            "model",
-            "owned_value_tag",
-            "non_owned_reference_tag",
-            "struct_get",
-            "SpanOwner",
-        ):
+# Skip utility structs that are not blocks
+        if block_name in _NON_BLOCK_STRUCTS:
             continue
 
         # Check if this struct is the registered block or matches reflected type
@@ -1144,7 +1052,7 @@ def _method_signature(cursor: ci.Cursor) -> str:
             else ""
         )
         return f"{result_type} {cursor.spelling}(...)"
-    except Exception:
+    except Exception:  # clang C extension boundary
         return cursor.spelling
 
 
@@ -1318,13 +1226,11 @@ def validate_header(
 # ── CLI ─────────────────────────────────────────────────────────────
 
 
-def main() -> int:
-    import argparse
 
-    # Discover project include paths
+def _discover_project_root() -> str:
+    """Find the project root directory from environment or git/CWD."""
     project_root = os.environ.get("PROJECT_ROOT", "")
     if not project_root:
-        # Try to find repo root by looking for CMakeLists.txt
         cwd = Path.cwd()
         for parent in [cwd] + list(cwd.parents):
             if (parent / "CMakeLists.txt").exists():
@@ -1332,7 +1238,233 @@ def main() -> int:
                 break
         if not project_root:
             project_root = str(cwd)
+    return project_root
 
+
+def _scan(
+    headers: list[str | Path],
+    extra_includes: list[str] | None,
+    validate_flag: bool,
+) -> tuple[list[BlockDict], list[IssueDict], bool]:
+    """Parse and optionally validate block headers. Returns (blocks, issues, all_passed)."""
+    all_blocks: list[BlockDict] = []
+    all_issues: list[IssueDict] = []
+    all_passed = True
+
+    # Batch-parse all headers in one clang invocation (shared includes resolved once)
+    try:
+        parsed = parse_headers_batch(headers, extra_includes)
+    except (OSError, subprocess.CalledProcessError, RuntimeError) as e:
+        print(f"Batch parse failed, falling back to per-file: {e}", file=sys.stderr)
+        parsed = {}
+        for h in headers:
+            try:
+                tu, meta = parse_header(h, extra_includes)
+                parsed[str(Path(h).resolve())] = (tu, meta)
+            except (OSError, subprocess.CalledProcessError, RuntimeError) as e2:
+                print(f"Error parsing {h}: {e2}", file=sys.stderr)
+
+    # Group headers by TU id (batch parse shares one TU; fallback has distinct TUs)
+    # Build one file index per unique TU to avoid redundant cursor tree walks
+    _built_indexes: dict[int, FileIndex] = {}  # file_index cache
+    tu_to_headers: dict[int, list[str]] = {}
+    for h_path, (tu, _) in parsed.items():
+        tu_to_headers.setdefault(id(tu), []).append(h_path)
+
+    for h_path, (tu, meta) in parsed.items():
+        has_errors = meta.get("errors")
+        if has_errors:
+            print(f"Parse errors for {h_path}: {meta['errors']}", file=sys.stderr)
+            if validate_flag:
+                all_passed = False
+
+        # Opt-out: file-level disable directive
+        if "// block-schema-lint: disable" in Path(h_path).read_text():
+            all_issues.append(
+                {
+                    "severity": "info",
+                    "file": h_path,
+                    "message": "Skipped per block-schema-lint: disable directive",
+                }
+            )
+            continue
+
+        # Build per-TU file index once
+        tu_id = id(tu)
+        file_index = _built_indexes.get(tu_id)
+        if file_index is None:
+            group_paths = tu_to_headers.get(tu_id, [h_path])
+            resolved_targets = {str(Path(p).resolve()) for p in group_paths}
+            try:
+                file_index = _build_file_index(tu.cursor, resolved_targets)
+            except (OSError, RuntimeError) as idx_err:
+                print(f"Warning: file index build failed: {idx_err}", file=sys.stderr)
+                file_index = {}
+            _built_indexes[tu_id] = file_index
+
+        try:
+            if validate_flag:
+                vresult = validate_header(h_path, tu, file_index)
+                all_blocks.extend(vresult["blocks"])
+                all_issues.extend(vresult["issues"])
+                if not vresult["passed"]:
+                    all_passed = False
+            else:
+                result = build_block_descriptor(h_path, tu, file_index)
+                all_blocks.extend(result["blocks"])
+        except Exception as e:  # per-file boundary — prints traceback
+            print(f"Error processing {h_path}: {e}", file=sys.stderr)
+            traceback.print_exc()
+
+    return all_blocks, all_issues, all_passed
+
+
+def _emit_issues_md(issues: list[IssueDict]) -> None:
+    """Print validation issues as a markdown table."""
+    if not issues:
+        return
+
+    error_count = len([i for i in issues if i["severity"] == "error"])
+    warning_count = len([i for i in issues if i["severity"] == "warning"])
+    info_count = len([i for i in issues if i["severity"] == "info"])
+
+    print("## Validation")
+    print()
+    parts = []
+    if error_count:
+        parts.append(f"**{error_count} errors**")
+    if warning_count:
+        parts.append(f"{warning_count} warnings")
+    if info_count:
+        parts.append(f"{info_count} info")
+    if not parts:
+        parts.append("0 issues")
+    print(f"{' — '.join(parts)}")
+    print()
+    print("| Severity | File | Message |")
+    print("|----------|------|---------|")
+    for issue in issues:
+        sev = issue["severity"].upper()
+        msg = issue["message"]
+        fname = issue.get("file", "")
+        if fname:
+            fname = Path(fname).name
+        print(f"| {sev} | {fname} | {msg} |")
+    print()
+
+
+def _emit_blocks_md(blocks: list[BlockDict]) -> None:
+    """Print block descriptors as markdown."""
+    for b in blocks:
+        name = b.get("id") or b.get("type_name", "")
+        fname = Path(b.get("file", "")).name if b.get("file") else ""
+        label = f"`{name}` ({fname})" if fname else f"`{name}`"
+        print(f"\n## {label}")
+        print()
+
+        summary = b.get("summary", "")
+        if summary:
+            el = "..." if len(summary) > 100 else ""
+            print(f"{summary[:100]}{el}")
+            print()
+
+        members = b.get("members", [])
+        if members:
+            print("| Kind | Name | Type | Details |")
+            print("|------|------|------|---------|")
+            for m in members:
+                extra = ""
+                if m["kind"] == "port":
+                    extra = f"dir={m.get('direction', '')}"
+                elif m["kind"] == "parameter":
+                    pn = m.get("parameter_name", "")
+                    extra = f"param={pn}"
+                    doc = m.get("doc", "")
+                    if doc:
+                        extra += f" — {doc}"
+                kind = m["kind"]
+                typ = m.get("type", "") or "—"
+                print(f"| {kind} | `{m['name']}` | `{typ}` | {extra} |")
+            print()
+
+        details = []
+        if b.get("template_params"):
+            params = ", ".join(f"`{p}`" for p in b["template_params"])
+            details.append(f"**template_params**: {params}")
+        if b.get("type_expansions"):
+            flat = ", ".join(f"`{t}`" for ex in b["type_expansions"] for t in ex)
+            details.append(f"**type_expansions**: {flat}")
+        if b.get("base_classes"):
+            bc = ", ".join(f"`{c}`" for c in b["base_classes"])
+            details.append(f"**base_classes**: {bc}")
+        if details:
+            for d in details:
+                print(f"- {d}")
+            print()
+
+
+def _emit_json(
+    blocks: list[BlockDict],
+    issues: list[IssueDict],
+    passed: bool,
+    validate: bool,
+) -> dict[str, object]:
+    """Build the JSON-serializable BlockCatalog dict."""
+    output: dict[str, object] = {
+        "version": 1,
+        "source": "block-schema-lint clang.cindex scanner",
+        "blocks": blocks,
+    }
+    if validate:
+        output["issues"] = issues
+        output["passed"] = passed
+    return output
+
+
+def _run_cue(output: dict[str, object]) -> bool:
+    """Run Cue schema validation on the output. Returns True on pass."""
+    schema_dir = Path(__file__).resolve().parent / "schemas"
+    if not schema_dir.is_dir():
+        print(f"Cue schemas not found at {schema_dir}", file=sys.stderr)
+        return False
+
+    with _tmp_file(suffix=".json", prefix="bsl_cue_") as tmp:
+        with open(tmp, "w") as f:
+            json.dump(output, f, indent=2)
+        try:
+            r = subprocess.run(
+                [
+                    "cue",
+                    "vet",
+                    "-d",
+                    "BlockCatalog",
+                    str(schema_dir / "catalog.cue"),
+                    str(schema_dir / "block_descriptor.cue"),
+                    tmp,
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if r.returncode == 0:
+                print("Cue schema: PASS", file=sys.stderr)
+                return True
+            print("Cue schema: FAIL", file=sys.stderr)
+            for line in r.stderr.split("\n"):
+                if line.strip():
+                    print(f"  {line}", file=sys.stderr)
+            return False
+        except FileNotFoundError:
+            print(
+                "cue not found (see https://cuelang.org/docs/install/)",
+                file=sys.stderr,
+            )
+            return False
+
+
+def main() -> int:
+    import argparse
+
+    project_root = _discover_project_root()
     discovered = discover_project_includes(project_root)
     PROJECT_INCLUDE_PATHS.extend(discovered)
 
@@ -1362,235 +1494,44 @@ def main() -> int:
     if args.cue:
         args.json = True
 
-    all_blocks: list[BlockDict] = []
-    all_issues: list[IssueDict] = []
-    total_passed = True
+    all_passed = True
 
     # Validate all paths exist before doing any work
     bad_paths = [h for h in args.headers if not Path(h).is_file()]
-    if bad_paths:
-        for p in bad_paths:
-            print(f"File not found: {p}", file=sys.stderr)
-        total_passed = False
-        args.headers = [h for h in args.headers if Path(h).is_file()]
-        if not args.headers:
-            sys.exit(1 if args.validate else 0)
+    for p in bad_paths:
+        print(f"File not found: {p}", file=sys.stderr)
+        all_passed = False
+    remaining = [h for h in args.headers if Path(h).is_file()]
+    if not remaining:
+        return 1 if args.validate else 0
 
-    # Batch-parse all headers in one clang invocation (shared includes resolved once)
-    try:
-        parsed = parse_headers_batch(args.headers, args.extra_includes)
-    except Exception as e:
-        print(f"Batch parse failed, falling back to per-file: {e}", file=sys.stderr)
-        parsed = {}
-        for h in args.headers:
-            try:
-                tu, meta = parse_header(h, args.extra_includes)
-                parsed[str(Path(h).resolve())] = (tu, meta)
-            except Exception as e2:
-                print(f"Error parsing {h}: {e2}", file=sys.stderr)
-
-    # Group headers by TU id (batch parse shares one TU; fallback has distinct TUs)
-    # Build one file index per unique TU to avoid redundant cursor tree walks
-    _built_indexes: dict[int, FileIndex] = {}  # file_index cache
-    tu_to_headers: dict[int, list[str]] = {}
-    for h_path, (tu, _) in parsed.items():
-        tu_to_headers.setdefault(id(tu), []).append(h_path)
-
-    for h_path, (tu, meta) in parsed.items():
-        has_errors = meta.get("errors")
-        if has_errors:
-            print(f"Parse errors for {h_path}: {meta['errors']}", file=sys.stderr)
-            if args.validate:
-                total_passed = False
-
-        # Opt-out: file-level disable directive
-        if "// block-schema-lint: disable" in Path(h_path).read_text():
-            all_issues.append(
-                {
-                    "severity": "info",
-                    "file": h_path,
-                    "message": "Skipped per block-schema-lint: disable directive",
-                }
-            )
-            continue
-
-        # Build per-TU file index once
-        tu_id = id(tu)
-        file_index = _built_indexes.get(tu_id)
-        if file_index is None:
-            group_paths = tu_to_headers.get(tu_id, [h_path])
-            resolved_targets = {str(Path(p).resolve()) for p in group_paths}
-            try:
-                file_index = _build_file_index(tu.cursor, resolved_targets)
-            except Exception as idx_err:
-                print(f"Warning: file index build failed: {idx_err}", file=sys.stderr)
-                file_index = {}
-            _built_indexes[tu_id] = file_index
-
-        try:
-            if args.validate:
-                vresult = validate_header(h_path, tu, file_index)
-                all_blocks.extend(vresult["blocks"])
-                all_issues.extend(vresult["issues"])
-                if not vresult["passed"]:
-                    total_passed = False
-            else:
-                result = build_block_descriptor(h_path, tu, file_index)
-                all_blocks.extend(result["blocks"])
-        except Exception as e:
-            print(f"Error processing {h_path}: {e}", file=sys.stderr)
-            import traceback
-
-            traceback.print_exc()
+    all_blocks, all_issues, scan_passed = _scan(
+        remaining, args.extra_includes, args.validate
+    )
+    if not scan_passed:
+        all_passed = False
 
     # Output validation issues if --validate
     if args.validate:
-        if all_issues:
-            error_count = len([i for i in all_issues if i["severity"] == "error"])
-            warning_count = len([i for i in all_issues if i["severity"] == "warning"])
-            info_count = len([i for i in all_issues if i["severity"] == "info"])
-
-            print("## Validation")
-            print()
-            parts = []
-            if error_count:
-                parts.append(f"**{error_count} errors**")
-            if warning_count:
-                parts.append(f"{warning_count} warnings")
-            if info_count:
-                parts.append(f"{info_count} info")
-            if not parts:
-                parts.append("0 issues")
-            print(f"{' — '.join(parts)}")
-            print()
-            print("| Severity | File | Message |")
-            print("|----------|------|---------|")
-            for issue in all_issues:
-                sev = issue["severity"].upper()
-                msg = issue["message"]
-                fname = issue.get("file", "")
-                if fname:
-                    fname = Path(fname).name
-                print(f"| {sev} | {fname} | {msg} |")
-            print()
+        _emit_issues_md(all_issues)
 
     if args.json:
-        output: dict[str, object] = {"blocks": all_blocks}
-        if args.validate:
-            output["issues"] = all_issues
-            output["passed"] = total_passed
-        if args.json:
-            output = {
-                "version": 1,
-                "source": "block-schema-lint clang.cindex scanner",
-                "blocks": all_blocks,
-            }
-            if args.validate:
-                output["issues"] = all_issues
-                output["passed"] = total_passed
+        output = _emit_json(all_blocks, all_issues, all_passed, args.validate)
         json.dump(output, sys.stdout, indent=2)
         print()
 
         # --cue: validate against Cue schema
         if args.cue:
-            import tempfile
-
-            schema_dir = Path(__file__).resolve().parent / "schemas"
-            if schema_dir.is_dir():
-                (Path.cwd() / "tmp").mkdir(parents=True, exist_ok=True)
-                with tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".json", delete=False, prefix="bsl_cue_", dir=Path.cwd() / "tmp"
-                ) as f:
-                    json.dump(output, f, indent=2)
-                    tmp = f.name
-                try:
-                    r = subprocess.run(
-                        [
-                            "cue",
-                            "vet",
-                            "-d",
-                            "BlockCatalog",
-                            str(schema_dir / "catalog.cue"),
-                            str(schema_dir / "block_descriptor.cue"),
-                            tmp,
-                        ],
-                        capture_output=True,
-                        text=True,
-                    )
-                    if r.returncode == 0:
-                        print("Cue schema: PASS", file=sys.stderr)
-                    else:
-                        total_passed = False
-                        print("Cue schema: FAIL", file=sys.stderr)
-                        for line in r.stderr.split("\n"):
-                            if line.strip():
-                                print(f"  {line}", file=sys.stderr)
-                except FileNotFoundError:
-                    total_passed = False
-                    print(
-                        "cue not found (see https://cuelang.org/docs/install/)",
-                        file=sys.stderr,
-                    )
-                finally:
-                    try:
-                        os.unlink(tmp)
-                    except OSError:
-                        pass
-            else:
-                total_passed = False
-                print(f"Cue schemas not found at {schema_dir}", file=sys.stderr)
-
+            if not _run_cue(output):
+                all_passed = False
     else:
-        for b in all_blocks:
-            name = b.get("id") or b.get("type_name", "")
-            fname = Path(b.get("file", "")).name if b.get("file") else ""
-            label = f"`{name}` ({fname})" if fname else f"`{name}`"
-            print(f"\n## {label}")
-            print()
+        _emit_blocks_md(all_blocks)
 
-            summary = b.get("summary", "")
-            if summary:
-                el = "..." if len(summary) > 100 else ""
-                print(f"{summary[:100]}{el}")
-                print()
-
-            members = b.get("members", [])
-            if members:
-                print("| Kind | Name | Type | Details |")
-                print("|------|------|------|---------|")
-                for m in members:
-                    extra = ""
-                    if m["kind"] == "port":
-                        extra = f"dir={m.get('direction', '')}"
-                    elif m["kind"] == "parameter":
-                        pn = m.get("parameter_name", "")
-                        extra = f"param={pn}"
-                        doc = m.get("doc", "")
-                        if doc:
-                            extra += f" — {doc}"
-                    kind = m["kind"]
-                    typ = m.get("type", "") or "—"
-                    print(f"| {kind} | `{m['name']}` | `{typ}` | {extra} |")
-                print()
-
-            details = []
-            if b.get("template_params"):
-                params = ", ".join(f"`{p}`" for p in b["template_params"])
-                details.append(f"**template_params**: {params}")
-            if b.get("type_expansions"):
-                flat = ", ".join(f"`{t}`" for ex in b["type_expansions"] for t in ex)
-                details.append(f"**type_expansions**: {flat}")
-            if b.get("base_classes"):
-                bc = ", ".join(f"`{c}`" for c in b["base_classes"])
-                details.append(f"**base_classes**: {bc}")
-            if details:
-                for d in details:
-                    print(f"- {d}")
-                print()
-
-    if args.validate and not total_passed:
+    if args.validate and not all_passed:
         return 1
     return 0
+
+
 
 
 if __name__ == "__main__":
