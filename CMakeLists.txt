@@ -21,6 +21,10 @@ set(IMPLOT_LIBRARY "" CACHE FILEPATH "Override ImPlot library file (e.g. /usr/lo
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules")
 
+if(ENABLE_PLUGINS)
+  find_package(GnuRadioBlockLib CONFIG REQUIRED)
+endif()
+
 # Use ccache if found and enabled
 find_program(CCACHE_PROGRAM ccache)
 if(CCACHE_PROGRAM AND USE_CCACHE)
