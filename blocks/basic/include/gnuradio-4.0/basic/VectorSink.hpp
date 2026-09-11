@@ -6,10 +6,7 @@
 
 namespace gr::incubator::basic {
 
-GR_REGISTER_BLOCK("gr::incubator::basic::VectorSink",                                       // Name
-    gr::incubator::basic::VectorSink, ([T]),                                                // Struct, and type T
-    [ uint8_t, int16_t, int32_t, float, double, std::complex<float>, std::complex<double> ] // Supported Types
-)
+GR_REGISTER_BLOCK("gr::incubator::basic::VectorSink", gr::incubator::basic::VectorSink, ([T]), [ uint8_t, int16_t, int32_t, float, double, std::complex<float>, std::complex<double> ])
 
 using namespace gr;
 

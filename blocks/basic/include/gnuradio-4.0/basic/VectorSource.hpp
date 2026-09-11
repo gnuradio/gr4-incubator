@@ -6,9 +6,7 @@
 
 namespace gr::incubator::basic {
 
-GR_REGISTER_BLOCK("gr::incubator::basic::VectorSource", // Name
-    gr::incubator::basic::VectorSource, ([T]),          // type and type
-    [ uint8_t, int16_t, int32_t, float, double, std::complex<float>, std::complex<double> ])
+GR_REGISTER_BLOCK("gr::incubator::basic::VectorSource", gr::incubator::basic::VectorSource, ([T]), [ uint8_t, int16_t, int32_t, float, double, std::complex<float>, std::complex<double> ])
 
 using namespace gr;
 

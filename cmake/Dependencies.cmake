@@ -372,14 +372,6 @@ function(gr4_incubator_resolve_dependencies)
   set(GR4I_GNURADIO4_TARGET gr4_incubator::gnuradio4 PARENT_SCOPE)
 
   if(ENABLE_PLUGINS)
-    find_program(GR4I_PARSE_REGISTRATIONS_EXE NAMES gnuradio_4_0_parse_registrations)
-    if(NOT GR4I_PARSE_REGISTRATIONS_EXE)
-      message(FATAL_ERROR
-        "ENABLE_PLUGINS=ON requires gnuradio_4_0_parse_registrations in PATH. "
-        "Install gnuradio4 blocklib_generator tools and/or set CMAKE_PROGRAM_PATH.")
-    endif()
-    set(GR4I_PARSE_REGISTRATIONS_EXE "${GR4I_PARSE_REGISTRATIONS_EXE}" PARENT_SCOPE)
-
     if(NOT TARGET gr4_incubator_gnuradio4_plugin)
       if(TARGET gnuradio4::gnuradio-plugin)
         set(_gr4i_plugin_target gnuradio4::gnuradio-plugin)
@@ -396,7 +388,6 @@ function(gr4_incubator_resolve_dependencies)
     endif()
     set(GR4I_GNURADIO4_PLUGIN_TARGET "${_gr4i_plugin_target}" PARENT_SCOPE)
   else()
-    set(GR4I_PARSE_REGISTRATIONS_EXE "" PARENT_SCOPE)
     set(GR4I_GNURADIO4_PLUGIN_TARGET "" PARENT_SCOPE)
   endif()
 
