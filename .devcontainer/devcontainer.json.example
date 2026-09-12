@@ -32,8 +32,7 @@
       "extensions": [
         "ms-vscode.cpptools",
         "ms-python.python",
-        "ms-azuretools.vscode-docker",
-        "mesonbuild.mesonbuild"
+        "ms-azuretools.vscode-docker"
       ]
     }
   }
