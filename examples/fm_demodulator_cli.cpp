@@ -265,15 +265,21 @@ int main(int argc, char** argv) {
         throw std::runtime_error(std::format("failed to initialize scheduler: {}", ret.error()));
     }
     if (watchdog_timeout_ms == 0) {
-        sched.settings().set(make_props({
-            {"watchdog_timeout", gr::pmt::Value(static_cast<gr::Size_t>(60'000))},
-            {"timeout_inactivity_count", gr::pmt::Value(std::numeric_limits<gr::Size_t>::max())},
-        }));
+        if (const auto failed = sched.settings().set(make_props({
+                {"watchdog_timeout", gr::pmt::Value(static_cast<gr::Size_t>(60'000))},
+                {"timeout_inactivity_count", gr::pmt::Value(std::numeric_limits<gr::Size_t>::max())},
+            }));
+            !failed.empty()) {
+            throw std::runtime_error(std::format("failed to configure scheduler settings: {}", failed));
+        }
     } else {
-        sched.settings().set(make_props({
-            {"watchdog_timeout", gr::pmt::Value(static_cast<gr::Size_t>(watchdog_timeout_ms))},
-            {"timeout_inactivity_count", gr::pmt::Value(static_cast<gr::Size_t>(watchdog_inactive_count))},
-        }));
+        if (const auto failed = sched.settings().set(make_props({
+                {"watchdog_timeout", gr::pmt::Value(static_cast<gr::Size_t>(watchdog_timeout_ms))},
+                {"timeout_inactivity_count", gr::pmt::Value(static_cast<gr::Size_t>(watchdog_inactive_count))},
+            }));
+            !failed.empty()) {
+            throw std::runtime_error(std::format("failed to configure scheduler settings: {}", failed));
+        }
     }
 
     auto find_block = [&](std::string_view name) -> std::shared_ptr<gr::BlockModel> {
