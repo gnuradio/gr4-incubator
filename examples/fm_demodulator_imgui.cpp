@@ -258,7 +258,7 @@ int main(int argc, char** argv) {
         audio_sink.settings().setStaged(make_props({{"ignore_tag_sample_rate", gr::pmt::Value(true)}}));
     }
 
-    auto& audio_probe = fg.emplaceBlock<gr::basic::DataSink<TR>>(make_props({
+    auto& audio_probe = fg.emplaceBlock<gr::blocks::basic::DataSink<TR>>(make_props({
         {"name", gr::pmt::Value(std::string("audio_probe"))},
         {"signal_name", gr::pmt::Value(std::string("audio"))},
         {"sample_rate", gr::pmt::Value(static_cast<float>(audio_rate))},
@@ -328,12 +328,12 @@ int main(int argc, char** argv) {
     const char* glsl_version = "#version 330";
     ImGui_ImplOpenGL3_Init(glsl_version);
 
-    gr::basic::PollerConfig poll_config;
-    poll_config.overflowPolicy = gr::basic::OverflowPolicy::Drop;
+    gr::blocks::basic::PollerConfig poll_config;
+    poll_config.overflowPolicy = gr::blocks::basic::OverflowPolicy::Drop;
     poll_config.minRequiredSamples = 64;
     poll_config.maxRequiredSamples = 1024;
 
-    auto poller = gr::basic::globalDataSinkRegistry().getStreamingPoller<TR>(gr::basic::DataSinkQuery::signalName("audio"), poll_config);
+    auto poller = gr::blocks::basic::globalDataSinkRegistry().getStreamingPoller<TR>(gr::blocks::basic::DataSinkQuery::signalName("audio"), poll_config);
 
     std::vector<float> plot_buffer;
     plot_buffer.reserve(8192);
@@ -357,7 +357,7 @@ int main(int argc, char** argv) {
         glfwPollEvents();
 
         if (!poller) {
-            poller = gr::basic::globalDataSinkRegistry().getStreamingPoller<TR>(gr::basic::DataSinkQuery::signalName("audio"), poll_config);
+            poller = gr::blocks::basic::globalDataSinkRegistry().getStreamingPoller<TR>(gr::blocks::basic::DataSinkQuery::signalName("audio"), poll_config);
         }
         if (poller) {
             std::ignore = poller->process([&](std::span<const float> samples) {

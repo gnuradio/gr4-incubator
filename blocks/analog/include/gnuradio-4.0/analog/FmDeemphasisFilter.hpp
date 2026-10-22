@@ -42,7 +42,7 @@ struct FmDeemphasisFilter : Block<FmDeemphasisFilter<T>> {
     }
 
 private:
-    gr::filter::iir_filter<T, gr::filter::IIRForm::DF_II> _iir{};
+    gr::blocks::filter::iir_filter<T, gr::blocks::filter::IIRForm::DF_II> _iir{};
 
     void updateFilter() {
         auto [b, a] = computeTaps();

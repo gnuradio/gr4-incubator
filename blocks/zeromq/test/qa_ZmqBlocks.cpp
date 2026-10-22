@@ -683,7 +683,7 @@ const suite ZmqBlocksTests = [] {
             {"timeout", gr::pmt::Value(25)},
             {"bind", gr::pmt::Value(true)},
         }));
-        auto& sink = fg.emplaceBlock<gr::testing::CountingSink<T>>(make_props({
+        auto& sink = fg.emplaceBlock<gr::blocks::testing::CountingSink<T>>(make_props({
             {"n_samples_max", gr::pmt::Value(n_samples)},
         }));
 
@@ -780,7 +780,7 @@ const suite ZmqBlocksTests = [] {
             {"timeout", gr::pmt::Value(25)},
             {"bind", gr::pmt::Value(true)},
         }));
-        auto& sink = fg.emplaceBlock<gr::testing::CountingSink<float>>(make_props({
+        auto& sink = fg.emplaceBlock<gr::blocks::testing::CountingSink<float>>(make_props({
             {"n_samples_max", gr::pmt::Value(static_cast<gr::Size_t>(1))},
         }));
 
@@ -831,7 +831,7 @@ const suite ZmqBlocksTests = [] {
             {"timeout", gr::pmt::Value(25)},
             {"bind", gr::pmt::Value(true)},
         }));
-        auto& sink = fg.emplaceBlock<gr::testing::CountingSink<T>>(make_props({
+        auto& sink = fg.emplaceBlock<gr::blocks::testing::CountingSink<T>>(make_props({
             {"n_samples_max", gr::pmt::Value(static_cast<gr::Size_t>(16))},
         }));
 
@@ -859,7 +859,7 @@ const suite ZmqBlocksTests = [] {
             {"timeout", gr::pmt::Value(25)},
             {"bind", gr::pmt::Value(true)},
         }));
-        auto& sink = fg.emplaceBlock<gr::testing::CountingSink<T>>(make_props({
+        auto& sink = fg.emplaceBlock<gr::blocks::testing::CountingSink<T>>(make_props({
             {"n_samples_max", gr::pmt::Value(static_cast<gr::Size_t>(1))},
         }));
 
@@ -926,7 +926,7 @@ const suite ZmqBlocksTests = [] {
             {"bind", gr::pmt::Value(true)},
             {"key", gr::pmt::Value(key)},
         }));
-        auto& sink = fg.emplaceBlock<gr::testing::CountingSink<T>>(make_props({
+        auto& sink = fg.emplaceBlock<gr::blocks::testing::CountingSink<T>>(make_props({
             {"n_samples_max", gr::pmt::Value(static_cast<gr::Size_t>(3))},
         }));
 
@@ -957,7 +957,7 @@ const suite ZmqBlocksTests = [] {
             {"bind", gr::pmt::Value(true)},
             {"key", gr::pmt::Value(subscribe_key)},
         }));
-        auto& sink = fg.emplaceBlock<gr::testing::CountingSink<T>>(make_props({
+        auto& sink = fg.emplaceBlock<gr::blocks::testing::CountingSink<T>>(make_props({
             {"n_samples_max", gr::pmt::Value(static_cast<gr::Size_t>(2))},
         }));
 
@@ -986,7 +986,7 @@ const suite ZmqBlocksTests = [] {
             {"bind", gr::pmt::Value(true)},
             {"key", gr::pmt::Value(std::string("telemetry."))},
         }));
-        auto& sink = fg.emplaceBlock<gr::testing::CountingSink<T>>(make_props({
+        auto& sink = fg.emplaceBlock<gr::blocks::testing::CountingSink<T>>(make_props({
             {"n_samples_max", gr::pmt::Value(static_cast<gr::Size_t>(1))},
         }));
 
@@ -1015,7 +1015,7 @@ const suite ZmqBlocksTests = [] {
             {"bind", gr::pmt::Value(true)},
             {"key", gr::pmt::Value(std::string())},
         }));
-        auto& sink = fg.emplaceBlock<gr::testing::CountingSink<T>>(make_props({
+        auto& sink = fg.emplaceBlock<gr::blocks::testing::CountingSink<T>>(make_props({
             {"n_samples_max", gr::pmt::Value(static_cast<gr::Size_t>(2))},
         }));
 
@@ -1043,7 +1043,7 @@ const suite ZmqBlocksTests = [] {
             {"timeout", gr::pmt::Value(100)},
             {"bind", gr::pmt::Value(true)},
         }));
-        auto& sink = fg.emplaceBlock<gr::testing::CountingSink<T>>(make_props({
+        auto& sink = fg.emplaceBlock<gr::blocks::testing::CountingSink<T>>(make_props({
             {"n_samples_max", gr::pmt::Value(static_cast<gr::Size_t>(5))},
         }));
 

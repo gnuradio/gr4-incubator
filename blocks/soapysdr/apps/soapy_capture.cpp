@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
         {"max_overflow_count", static_cast<gr::Size_t>(max_overflow)},
     });
 
-    auto& sink = fg.emplaceBlock<gr::testing::CountingSink<T>>({
+    auto& sink = fg.emplaceBlock<gr::blocks::testing::CountingSink<T>>({
         {"n_samples_max", static_cast<gr::Size_t>(n_samples)},
     });
 

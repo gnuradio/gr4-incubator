@@ -12,9 +12,9 @@ const boost::ut::suite<"BlockingBackoff"> BlockingBackoffTests = [] {
 
     "finite graph completes"_test = [] {
         gr::Graph graph;
-        auto&     source = graph.emplaceBlock<gr::testing::CountingSource<float>>(gr::property_map{{"n_samples_max", gr::Size_t(32)}});
-        auto&     copy   = graph.emplaceBlock<gr::testing::Copy<float>>();
-        auto&     sink   = graph.emplaceBlock<gr::testing::CountingSink<float>>(gr::property_map{{"n_samples_max", gr::Size_t(32)}});
+        auto&     source = graph.emplaceBlock<gr::blocks::testing::CountingSource<float>>(gr::property_map{{"n_samples_max", gr::Size_t(32)}});
+        auto&     copy   = graph.emplaceBlock<gr::blocks::testing::Copy<float>>();
+        auto&     sink   = graph.emplaceBlock<gr::blocks::testing::CountingSink<float>>(gr::property_map{{"n_samples_max", gr::Size_t(32)}});
 
         expect(graph.connect<"out", "in">(source, copy).has_value());
         expect(graph.connect<"out", "in">(copy, sink).has_value());
@@ -47,10 +47,10 @@ const boost::ut::suite<"BlockingBackoff"> BlockingBackoffTests = [] {
 
     "multi threaded plan creates more than one job list"_test = [] {
         gr::Graph graph;
-        auto&     sourceA = graph.emplaceBlock<gr::testing::CountingSource<float>>(gr::property_map{{"n_samples_max", gr::Size_t(8)}});
-        auto&     sinkA   = graph.emplaceBlock<gr::testing::CountingSink<float>>(gr::property_map{{"n_samples_max", gr::Size_t(8)}});
-        auto&     sourceB = graph.emplaceBlock<gr::testing::CountingSource<float>>(gr::property_map{{"n_samples_max", gr::Size_t(8)}});
-        auto&     sinkB   = graph.emplaceBlock<gr::testing::CountingSink<float>>(gr::property_map{{"n_samples_max", gr::Size_t(8)}});
+        auto&     sourceA = graph.emplaceBlock<gr::blocks::testing::CountingSource<float>>(gr::property_map{{"n_samples_max", gr::Size_t(8)}});
+        auto&     sinkA   = graph.emplaceBlock<gr::blocks::testing::CountingSink<float>>(gr::property_map{{"n_samples_max", gr::Size_t(8)}});
+        auto&     sourceB = graph.emplaceBlock<gr::blocks::testing::CountingSource<float>>(gr::property_map{{"n_samples_max", gr::Size_t(8)}});
+        auto&     sinkB   = graph.emplaceBlock<gr::blocks::testing::CountingSink<float>>(gr::property_map{{"n_samples_max", gr::Size_t(8)}});
 
         expect(graph.connect<"out", "in">(sourceA, sinkA).has_value());
         expect(graph.connect<"out", "in">(sourceB, sinkB).has_value());
